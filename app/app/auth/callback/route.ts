@@ -15,5 +15,5 @@ export async function GET(request: Request) {
   }
 
   // Redirect to dashboard after successful login
-  return NextResponse.redirect(new URL('/dashboard', requestUrl.origin))
+  return NextResponse.redirect(new URL('/app/dashboard', requestUrl.origin))
 }
