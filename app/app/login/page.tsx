@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
-import { Alert } from '@/components/ui/alert'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -87,7 +87,7 @@ export default function LoginPage() {
 
         {message && (
           <Alert className="mt-4" variant={message.type === 'error' ? 'destructive' : 'default'}>
-            {message.text}
+            <AlertDescription>{message.text}</AlertDescription>
           </Alert>
         )}
       </Card>

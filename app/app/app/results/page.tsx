@@ -153,7 +153,7 @@ export default function ResultsPage() {
                             ? 'default'
                             : result.confidence === 'Medium'
                             ? 'outline'
-                            : 'outline'
+                            : 'destructive'
                         }
                       >
                         {result.confidence}

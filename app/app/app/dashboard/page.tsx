@@ -40,7 +40,13 @@ export default function DashboardPage() {
         <Card className="p-6">
           <h2 className="text-lg font-medium">Recent Activity</h2>
           <Separator className="my-4" />
-          <p className="text-muted-foreground">No recent uploads or processing jobs.</p>
+          <p className="text-muted-foreground">
+            No recent uploads.{' '}
+            <Link href="/app/upload" className="font-medium text-foreground underline-offset-4 hover:underline">
+              Upload your first file
+            </Link>{' '}
+            to get started.
+          </p>
         </Card>
       </div>
     </div>
