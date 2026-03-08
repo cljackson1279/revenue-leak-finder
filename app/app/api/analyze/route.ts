@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+
+const ERA_835_GATING_ERROR =
+  'Automated analysis requires an 835 ERA file (.edi/.x12). PDF accepted for intake.'
 
 export async function POST(request: Request) {
   try {
@@ -10,19 +14,39 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'upload_id is required' }, { status: 400 })
     }
 
-    // Create Supabase client (server-side)
-    const supabase = createClient(
+    const cookieStore = await cookies()
+    const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) =>
+                cookieStore.set(name, value, options)
+              )
+            } catch {
+              // In route handlers cookies can only be set before the response is sent
+            }
+          },
+        },
+      }
     )
 
-    // Verify user is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    // Authenticate — getUser() validates the JWT with Supabase Auth server
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
     if (authError || !user) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
 
-    // Get the upload record
+    // Fetch the upload record
     const { data: upload, error: fetchError } = await supabase
       .from('uploads')
       .select('*')
@@ -33,7 +57,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Upload not found' }, { status: 404 })
     }
 
-    // Verify the user has access to this upload via their account
+    // Verify user belongs to the account that owns this upload
     const { data: accountUser, error: accountError } = await supabase
       .from('account_users')
       .select('account_id')
@@ -45,7 +69,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
-    // Update status to processing
+    // File-type gate: only 835 ERA files can be analyzed
+    if (upload.source_type !== 'era_835') {
+      await supabase
+        .from('uploads')
+        .update({
+          status: 'error',
+          error_message: ERA_835_GATING_ERROR,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', upload_id)
+
+      return NextResponse.json({ error: ERA_835_GATING_ERROR }, { status: 400 })
+    }
+
+    // Mark as processing
     const { error: updateError } = await supabase
       .from('uploads')
       .update({
@@ -55,21 +93,10 @@ export async function POST(request: Request) {
       .eq('id', upload_id)
 
     if (updateError) {
-      console.error('Error updating upload status:', updateError)
-      return NextResponse.json(
-        { error: 'Failed to update upload status' },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: 'Failed to update upload status' }, { status: 500 })
     }
 
-    // TODO: Trigger actual analysis job here (835 parsing, etc.)
-    // For now, we just update the status to processing
-    // In production, you would:
-    // 1. Queue a background job
-    // 2. Download file from storage
-    // 3. Parse 835/PDF
-    // 4. Store results
-    // 5. Update status to 'complete'
+    // TODO: enqueue background 835 parsing job
 
     return NextResponse.json({
       success: true,
@@ -78,7 +105,6 @@ export async function POST(request: Request) {
       message: 'Analysis started',
     })
   } catch (error) {
-    console.error('Error in analyze endpoint:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }

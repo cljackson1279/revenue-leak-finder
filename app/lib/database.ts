@@ -104,8 +104,7 @@ export function getSourceTypeFromFilename(filename: string): string {
   const ext = filename.split('.').pop()?.toLowerCase()
 
   if (ext === 'pdf') return 'pdf'
-  if (ext === 'edi' || ext === 'x12' || ext === '835') return 'edi'
-  if (ext === 'txt') return 'txt'
+  if (ext === 'edi' || ext === 'x12' || ext === '835' || ext === 'txt') return 'era_835'
 
   return 'unknown'
 }

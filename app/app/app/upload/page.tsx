@@ -133,6 +133,7 @@ export default function UploadPage() {
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ upload_id: uploadId }),
       })
 
