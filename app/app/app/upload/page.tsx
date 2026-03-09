@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import {
   getCurrentAccountId,
@@ -18,12 +19,14 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 
 export default function UploadPage() {
+  const router = useRouter()
   const [uploads, setUploads] = useState<Upload[]>([])
   const [uploading, setUploading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [accountId, setAccountId] = useState<string | null>(null)
   const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set())
+  const [autoOpenResults, setAutoOpenResults] = useState(true)
 
   useEffect(() => {
     loadUploads()
@@ -147,7 +150,7 @@ export default function UploadPage() {
     if (!token) {
       setMessage({ type: 'error', text: 'Session expired — please sign in again' })
       clearAnalyzing()
-      window.location.href = '/login'
+      router.push('/login')
       return
     }
 
@@ -175,7 +178,7 @@ export default function UploadPage() {
     if (response.status === 401) {
       setMessage({ type: 'error', text: 'Session expired — please sign in again' })
       clearAnalyzing()
-      window.location.href = '/login'
+      router.push('/login')
       return
     }
 
@@ -198,6 +201,10 @@ export default function UploadPage() {
     const count = Array.isArray(data.findings) ? data.findings.length : 0
     setMessage({ type: 'success', text: count > 0 ? `Analysis complete — ${count} finding(s) found.` : 'Analysis complete.' })
     clearAnalyzing()
+
+    if (autoOpenResults) {
+      router.push(`/app/results?upload_id=${uploadId}`)
+    }
   }
 
   const formatBytes = (bytes: number | null) => {
@@ -285,6 +292,19 @@ export default function UploadPage() {
               </p>
             </div>
 
+            <div className="flex items-center gap-2">
+              <input
+                id="auto-open"
+                type="checkbox"
+                checked={autoOpenResults}
+                onChange={e => setAutoOpenResults(e.target.checked)}
+                className="h-4 w-4 cursor-pointer"
+              />
+              <Label htmlFor="auto-open" className="cursor-pointer text-sm font-normal">
+                Auto-open Results after analysis
+              </Label>
+            </div>
+
             {message && (
               <Alert variant={message.type === 'error' ? 'destructive' : 'default'}>
                 <AlertDescription>{message.text}</AlertDescription>
@@ -318,13 +338,29 @@ export default function UploadPage() {
                     <Badge variant={getStatusBadgeVariant(upload.status)}>
                       {upload.status}
                     </Badge>
+                    {upload.status === 'complete' && (
+                      <>
+                        <Button
+                          size="sm"
+                          onClick={() => router.push(`/app/results?upload_id=${upload.id}`)}
+                        >
+                          View Results
+                        </Button>
+                        <a
+                          href={`/app/results?upload_id=${upload.id}`}
+                          className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                        >
+                          View Results
+                        </a>
+                      </>
+                    )}
                     {upload.status === 'uploaded' && (
                       <Button
                         size="sm"
                         onClick={() => handleRunAnalysis(upload.id)}
                         disabled={analyzingIds.has(upload.id)}
                       >
-                        {analyzingIds.has(upload.id) ? 'Starting...' : 'Run Analysis'}
+                        {analyzingIds.has(upload.id) ? 'Analyzing…' : 'Run Analysis'}
                       </Button>
                     )}
                   </div>
