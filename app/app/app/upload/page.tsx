@@ -129,62 +129,75 @@ export default function UploadPage() {
     setAnalyzingIds(prev => new Set(prev).add(uploadId))
     setMessage(null)
 
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token
-      if (!token) {
-        throw new Error('Not authenticated')
-      }
+    const clearAnalyzing = () =>
+      setAnalyzingIds(prev => { const next = new Set(prev); next.delete(uploadId); return next })
 
-      const response = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ upload_id: uploadId }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Analysis failed')
-      }
-
-      // Update the upload in the list
-      setUploads(prev =>
-        prev.map(u =>
-          u.id === uploadId ? { ...u, status: data.status, updated_at: new Date().toISOString() } : u
-        )
-      )
-
-      setMessage({ type: 'success', text: 'Analysis started successfully' })
-    } catch (error) {
-      setMessage({
-        type: 'error',
-        text: error instanceof Error ? error.message : 'Failed to start analysis',
-      })
-
-      // Update upload status to error
+    const setUploadError = (msg: string) =>
       setUploads(prev =>
         prev.map(u =>
           u.id === uploadId
-            ? {
-                ...u,
-                status: 'error',
-                error_message: error instanceof Error ? error.message : 'Analysis failed',
-                updated_at: new Date().toISOString(),
-              }
+            ? { ...u, status: 'error' as const, error_message: msg, updated_at: new Date().toISOString() }
             : u
         )
       )
-    } finally {
-      setAnalyzingIds(prev => {
-        const next = new Set(prev)
-        next.delete(uploadId)
-        return next
-      })
+
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+
+    if (!token) {
+      setMessage({ type: 'error', text: 'Session expired — please sign in again' })
+      clearAnalyzing()
+      window.location.href = '/login'
+      return
     }
+
+    let response: Response
+    let data: { error?: string; status?: string; findings?: unknown[] }
+
+    try {
+      response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ upload_id: uploadId }),
+      })
+      data = await response.json()
+    } catch {
+      const msg = 'Network error — could not reach the server'
+      setMessage({ type: 'error', text: msg })
+      setUploadError(msg)
+      clearAnalyzing()
+      return
+    }
+
+    if (response.status === 401) {
+      setMessage({ type: 'error', text: 'Session expired — please sign in again' })
+      clearAnalyzing()
+      window.location.href = '/login'
+      return
+    }
+
+    if (!response.ok) {
+      const msg = data.error || 'Analysis failed'
+      setMessage({ type: 'error', text: msg })
+      setUploadError(msg)
+      clearAnalyzing()
+      return
+    }
+
+    // Success
+    setUploads(prev =>
+      prev.map(u =>
+        u.id === uploadId
+          ? { ...u, status: (data.status ?? 'complete') as Upload['status'], error_message: null, updated_at: new Date().toISOString() }
+          : u
+      )
+    )
+    const count = Array.isArray(data.findings) ? data.findings.length : 0
+    setMessage({ type: 'success', text: count > 0 ? `Analysis complete — ${count} finding(s) found.` : 'Analysis complete.' })
+    clearAnalyzing()
   }
 
   const formatBytes = (bytes: number | null) => {
