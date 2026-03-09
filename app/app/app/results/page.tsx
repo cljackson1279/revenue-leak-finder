@@ -1,3 +1,7 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { createClient } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -11,90 +15,68 @@ import {
   TableRow,
 } from '@/components/ui/table'
 
-const sampleResults = [
-  {
-    payer: 'Blue Cross',
-    date: '2024-02-15',
-    code: '99213',
-    allowed: 125.0,
-    paid: 95.0,
-    delta: 30.0,
-    confidence: 'High',
-  },
-  {
-    payer: 'Aetna',
-    date: '2024-02-14',
-    code: '99214',
-    allowed: 175.0,
-    paid: 145.0,
-    delta: 30.0,
-    confidence: 'High',
-  },
-  {
-    payer: 'UnitedHealthcare',
-    date: '2024-02-12',
-    code: '99215',
-    allowed: 225.0,
-    paid: 180.0,
-    delta: 45.0,
-    confidence: 'Medium',
-  },
-  {
-    payer: 'Cigna',
-    date: '2024-02-10',
-    code: '99213',
-    allowed: 125.0,
-    paid: 100.0,
-    delta: 25.0,
-    confidence: 'High',
-  },
-  {
-    payer: 'Humana',
-    date: '2024-02-08',
-    code: '99214',
-    allowed: 175.0,
-    paid: 155.0,
-    delta: 20.0,
-    confidence: 'Medium',
-  },
-  {
-    payer: 'Blue Shield',
-    date: '2024-02-05',
-    code: '99215',
-    allowed: 225.0,
-    paid: 190.0,
-    delta: 35.0,
-    confidence: 'High',
-  },
-  {
-    payer: 'Medicare',
-    date: '2024-02-03',
-    code: '99213',
-    allowed: 110.0,
-    paid: 90.0,
-    delta: 20.0,
-    confidence: 'Low',
-  },
-  {
-    payer: 'Medicaid',
-    date: '2024-02-01',
-    code: '99214',
-    allowed: 150.0,
-    paid: 125.0,
-    delta: 25.0,
-    confidence: 'Medium',
-  },
-]
+type Finding = {
+  id: string
+  finding_type: string
+  amount: number
+  confidence: string
+  rationale: string
+  procedure_code: string
+  payer: string
+  created_at: string
+}
 
 export default function ResultsPage() {
-  const totalDelta = sampleResults.reduce((sum, r) => sum + r.delta, 0)
+  const [findings, setFindings] = useState<Finding[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function load() {
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
+
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { setLoading(false); return }
+
+      // Get account_id for this user
+      const { data: accountUser } = await supabase
+        .from('account_users')
+        .select('account_id')
+        .eq('user_id', session.user.id)
+        .single()
+
+      if (!accountUser) { setLoading(false); return }
+
+      const { data, error: fetchError } = await supabase
+        .from('findings')
+        .select('*')
+        .eq('account_id', accountUser.account_id)
+        .order('created_at', { ascending: false })
+
+      if (fetchError) {
+        setError(fetchError.message)
+      } else {
+        setFindings(data || [])
+      }
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  const totalAmount = findings.reduce((s, f) => s + Number(f.amount), 0)
+
+  const confidenceVariant = (c: string) =>
+    c === 'High' ? 'default' : c === 'Med' ? 'outline' : 'destructive'
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       <div className="mb-8">
         <h1 className="text-3xl font-semibold tracking-tight">Results</h1>
         <p className="mt-1 text-base text-muted-foreground">
-          Top revenue leak opportunities identified from your uploads.
+          Revenue leak opportunities identified from your 835 ERA uploads.
         </p>
       </div>
 
@@ -103,73 +85,81 @@ export default function ResultsPage() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-medium">Total Potential Recovery</h2>
-              <p className="mt-1 text-3xl font-semibold tracking-tight">
-                ${totalDelta.toFixed(2)}
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Based on {sampleResults.length} identified opportunities
-              </p>
+              {loading ? (
+                <p className="mt-1 text-muted-foreground text-sm">Loading…</p>
+              ) : (
+                <>
+                  <p className="mt-1 text-3xl font-semibold tracking-tight">
+                    ${totalAmount.toFixed(2)}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {findings.length > 0
+                      ? `Based on ${findings.length} identified opportunity${findings.length !== 1 ? 'ies' : 'y'}`
+                      : 'Upload and analyze an 835 ERA file to see findings here.'}
+                  </p>
+                </>
+              )}
             </div>
             <div className="flex gap-2">
-              <Button variant="outline">Download PDF</Button>
-              <Button variant="outline">Download CSV</Button>
+              <Button variant="outline" disabled>Download PDF</Button>
+              <Button variant="outline" disabled>Download CSV</Button>
             </div>
           </div>
         </Card>
 
-        <Card className="p-6">
-          <h2 className="text-lg font-medium">Top Opportunities</h2>
-          <Separator className="my-4" />
+        {error && (
+          <Card className="p-4 border-destructive">
+            <p className="text-sm text-destructive">
+              Could not load findings: {error}. Make sure the findings table exists (see{' '}
+              <code>supabase/migrations/20260309000000_create_findings.sql</code>).
+            </p>
+          </Card>
+        )}
 
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Payer</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Code</TableHead>
-                  <TableHead className="text-right">Allowed</TableHead>
-                  <TableHead className="text-right">Paid</TableHead>
-                  <TableHead className="text-right">Delta</TableHead>
-                  <TableHead>Confidence</TableHead>
-                  <TableHead>Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sampleResults.map((result, idx) => (
-                  <TableRow key={idx}>
-                    <TableCell className="font-medium">{result.payer}</TableCell>
-                    <TableCell>{result.date}</TableCell>
-                    <TableCell>{result.code}</TableCell>
-                    <TableCell className="text-right">${result.allowed.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">${result.paid.toFixed(2)}</TableCell>
-                    <TableCell className="text-right font-semibold text-red-600">
-                      ${result.delta.toFixed(2)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          result.confidence === 'High'
-                            ? 'default'
-                            : result.confidence === 'Medium'
-                            ? 'outline'
-                            : 'destructive'
-                        }
-                      >
-                        {result.confidence}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Button size="sm" variant="outline">
-                        Appeal
-                      </Button>
-                    </TableCell>
+        {!loading && findings.length > 0 && (
+          <Card className="p-6">
+            <h2 className="text-lg font-medium">Top Opportunities</h2>
+            <Separator className="my-4" />
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Payer</TableHead>
+                    <TableHead>Code</TableHead>
+                    <TableHead>Finding</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead>Confidence</TableHead>
+                    <TableHead>Rationale</TableHead>
+                    <TableHead>Action</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                  {findings.map(f => (
+                    <TableRow key={f.id}>
+                      <TableCell className="font-medium">{f.payer}</TableCell>
+                      <TableCell>{f.procedure_code}</TableCell>
+                      <TableCell>{f.finding_type}</TableCell>
+                      <TableCell className="text-right font-semibold text-red-600">
+                        ${Number(f.amount).toFixed(2)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={confidenceVariant(f.confidence)}>
+                          {f.confidence}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="max-w-xs text-xs text-muted-foreground truncate" title={f.rationale}>
+                        {f.rationale}
+                      </TableCell>
+                      <TableCell>
+                        <Button size="sm" variant="outline">Appeal</Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
+        )}
       </div>
     </div>
   )

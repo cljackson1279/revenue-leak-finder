@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { parse835, computeFindings } from '@/lib/parse835'
 
 const ERA_835_GATING_ERROR =
   'Automated analysis requires an 835 ERA file (.edi/.x12). PDF accepted for intake.'
@@ -30,16 +31,16 @@ export async function POST(request: Request) {
     // Validate token — getUser(token) calls Supabase Auth server to verify
     const { data: { user }, error: authError } = await anonClient.auth.getUser(token)
 
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    }
+
     // Authenticated client: DB + Storage operations run as the user, satisfying RLS
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       { global: { headers: { Authorization: `Bearer ${token}` } } }
     )
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-    }
 
     // Fetch the upload record
     const { data: upload, error: fetchError } = await supabase
@@ -79,25 +80,62 @@ export async function POST(request: Request) {
     }
 
     // Mark as processing
-    const { error: updateError } = await supabase
+    await supabase
       .from('uploads')
-      .update({
-        status: 'processing',
-        updated_at: new Date().toISOString(),
-      })
+      .update({ status: 'processing', updated_at: new Date().toISOString() })
       .eq('id', upload_id)
 
-    if (updateError) {
-      return NextResponse.json({ error: 'Failed to update upload status' }, { status: 500 })
+    // Download file from Storage and parse
+    const { data: fileBlob, error: downloadError } = await supabase.storage
+      .from('uploads')
+      .download(upload.storage_path)
+
+    if (downloadError || !fileBlob) {
+      await supabase
+        .from('uploads')
+        .update({
+          status: 'error',
+          error_message: 'Could not download file from storage',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', upload_id)
+      return NextResponse.json({ error: 'Could not download file' }, { status: 500 })
     }
 
-    // TODO: enqueue background 835 parsing job
+    const ediText = await fileBlob.text()
+    const { claims } = parse835(ediText)
+    const findings = computeFindings(claims)
+
+    // Persist findings (requires findings table — see supabase/migrations/)
+    let findingsPersisted = false
+    if (findings.length > 0) {
+      const { error: insertError } = await supabase.from('findings').insert(
+        findings.map(f => ({
+          account_id: upload.account_id,
+          upload_id,
+          finding_type: f.finding_type,
+          amount: f.amount,
+          confidence: f.confidence,
+          rationale: f.rationale,
+          procedure_code: f.procedure_code,
+          payer: f.payer,
+        }))
+      )
+      findingsPersisted = !insertError
+    }
+
+    // Mark complete
+    await supabase
+      .from('uploads')
+      .update({ status: 'complete', updated_at: new Date().toISOString() })
+      .eq('id', upload_id)
 
     return NextResponse.json({
       success: true,
       upload_id,
-      status: 'processing',
-      message: 'Analysis started',
+      status: 'complete',
+      findings,
+      findings_persisted: findingsPersisted,
     })
   } catch (error) {
     return NextResponse.json(
