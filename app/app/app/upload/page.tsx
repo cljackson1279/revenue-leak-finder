@@ -155,7 +155,7 @@ export default function UploadPage() {
     }
 
     let response: Response
-    let data: { error?: string; status?: string; findings?: unknown[] }
+    let data: { error?: string; details?: string; status?: string; ok?: boolean; findings_count?: number }
 
     try {
       response = await fetch('/api/analyze', {
@@ -194,11 +194,11 @@ export default function UploadPage() {
     setUploads(prev =>
       prev.map(u =>
         u.id === uploadId
-          ? { ...u, status: (data.status ?? 'complete') as Upload['status'], error_message: null, updated_at: new Date().toISOString() }
+          ? { ...u, status: 'complete' as const, error_message: null, updated_at: new Date().toISOString() }
           : u
       )
     )
-    const count = Array.isArray(data.findings) ? data.findings.length : 0
+    const count = data.findings_count ?? 0
     setMessage({ type: 'success', text: count > 0 ? `Analysis complete — ${count} finding(s) found.` : 'Analysis complete.' })
     clearAnalyzing()
 

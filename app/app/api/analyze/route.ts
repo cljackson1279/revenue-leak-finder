@@ -53,6 +53,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Upload not found' }, { status: 404 })
     }
 
+    const accountId: string = upload.account_id
+    if (!accountId) {
+      await supabase
+        .from('uploads')
+        .update({ status: 'error', error_message: 'Upload missing account_id', updated_at: new Date().toISOString() })
+        .eq('id', upload_id)
+      return NextResponse.json({ error: 'Upload missing account_id' }, { status: 500 })
+    }
+
     // Verify user belongs to the account that owns this upload
     const { data: accountUser, error: accountError } = await supabase
       .from('account_users')
@@ -105,38 +114,43 @@ export async function POST(request: Request) {
     const ediText = await fileBlob.text()
     const { claims } = parse835(ediText)
     const findings = computeFindings(claims)
+    const findingsCount = findings.length
 
-    // Persist findings (requires findings table — see supabase/migrations/)
-    let findingsPersisted = false
-    if (findings.length > 0) {
-      const { error: insertError } = await supabase.from('findings').insert(
-        findings.map(f => ({
-          account_id: upload.account_id,
-          upload_id,
-          finding_type: f.finding_type,
-          amount: f.amount,
-          confidence: f.confidence,
-          rationale: f.rationale,
-          procedure_code: f.procedure_code,
-          payer: f.payer,
-        }))
+    console.log('[analyze] accountId:', accountId, 'upload_id:', upload_id, 'findingsCount:', findingsCount)
+
+    // Persist findings — required before marking complete
+    const { error: insertError } = await supabase.from('findings').insert(
+      findings.map(f => ({
+        account_id: accountId,
+        upload_id: upload.id,
+        finding_type: f.finding_type,
+        amount: f.amount,
+        confidence: f.confidence,
+        rationale: f.rationale,
+        procedure_code: f.procedure_code,
+        payer: f.payer,
+      }))
+    )
+
+    if (insertError) {
+      console.log('[analyze] insertError:', insertError.message)
+      await supabase
+        .from('uploads')
+        .update({ status: 'error', error_message: insertError.message, updated_at: new Date().toISOString() })
+        .eq('id', upload_id)
+      return NextResponse.json(
+        { error: 'Failed to persist findings', details: insertError.message },
+        { status: 500 }
       )
-      findingsPersisted = !insertError
     }
 
-    // Mark complete
+    // Only mark complete after successful insert
     await supabase
       .from('uploads')
       .update({ status: 'complete', updated_at: new Date().toISOString() })
       .eq('id', upload_id)
 
-    return NextResponse.json({
-      success: true,
-      upload_id,
-      status: 'complete',
-      findings,
-      findings_persisted: findingsPersisted,
-    })
+    return NextResponse.json({ ok: true, findings_count: findingsCount })
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
