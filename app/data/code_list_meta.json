@@ -1,0 +1,10 @@
+{
+  "last_fetched": "2026-03-09T00:00:00.000Z",
+  "carc_count": 40,
+  "rarc_count": 14,
+  "sources": {
+    "carc": "https://www.wpc-edi.com/reference/codelists/healthcare/claim-adjustment-reason-codes/",
+    "rarc": "https://www.wpc-edi.com/reference/codelists/healthcare/remittance-advice-remark-codes/"
+  },
+  "note": "Built-in fallback codes. Run scripts/fetch-code-lists.ts to update from authoritative sources."
+}

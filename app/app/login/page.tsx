@@ -1,8 +1,7 @@
 'use client'
-
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { getSupabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,6 +9,7 @@ import { Card } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 export default function LoginPage() {
+  const supabase = getSupabase()
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
@@ -60,7 +60,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-4">
       <Card className="w-full max-w-md p-6">
         <div className="mb-6">
-          <h1 className="text-3xl font-semibold tracking-tight">Revenue Leak Finder</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Revenue Recovery Engine</h1>
           <p className="mt-2 text-base text-muted-foreground">
             Sign in with your email to continue
           </p>

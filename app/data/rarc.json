@@ -1,0 +1,16 @@
+{
+  "M1": { "code": "M1", "description": "X-ray not taken within the past 12 months or near enough to the start of treatment." },
+  "M2": { "code": "M2", "description": "Not paid separately when the patient is an inpatient." },
+  "M15": { "code": "M15", "description": "Separately billed services/tests have been bundled as they are considered components of the same procedure." },
+  "M20": { "code": "M20", "description": "Missing/incomplete/invalid HCPCS." },
+  "M79": { "code": "M79", "description": "Missing/incomplete/invalid charge amount." },
+  "N1": { "code": "N1", "description": "You may appeal this decision." },
+  "N2": { "code": "N2", "description": "This allowance has been made in accordance with the most appropriate level of care." },
+  "N4": { "code": "N4", "description": "Missing/Incomplete/Invalid prior Insurance Carrier(s) EOB." },
+  "N19": { "code": "N19", "description": "Procedure code incidental to primary procedure." },
+  "N20": { "code": "N20", "description": "Service not separately priced or included in the allowance for another service or procedure." },
+  "N30": { "code": "N30", "description": "Patient ineligible for this service." },
+  "N115": { "code": "N115", "description": "This decision was based on a National Coverage Determination (NCD)." },
+  "N386": { "code": "N386", "description": "This decision was based on a Local Coverage Determination (LCD)." },
+  "N432": { "code": "N432", "description": "Alert: Adjustment based on the sequestration of funds as mandated by law." }
+}
