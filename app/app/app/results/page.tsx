@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -26,7 +27,10 @@ type Finding = {
   created_at: string
 }
 
-export default function ResultsPage() {
+function ResultsContent() {
+  const searchParams = useSearchParams()
+  const uploadId = searchParams.get('upload_id')
+
   const [findings, setFindings] = useState<Finding[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -41,7 +45,6 @@ export default function ResultsPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { setLoading(false); return }
 
-      // Get account_id for this user
       const { data: accountUser } = await supabase
         .from('account_users')
         .select('account_id')
@@ -50,11 +53,19 @@ export default function ResultsPage() {
 
       if (!accountUser) { setLoading(false); return }
 
-      const { data, error: fetchError } = await supabase
+      let query = supabase
         .from('findings')
         .select('*')
         .eq('account_id', accountUser.account_id)
         .order('created_at', { ascending: false })
+
+      if (uploadId) {
+        query = query.eq('upload_id', uploadId)
+      } else {
+        query = query.limit(50)
+      }
+
+      const { data, error: fetchError } = await query
 
       if (fetchError) {
         setError(fetchError.message)
@@ -64,7 +75,7 @@ export default function ResultsPage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [uploadId])
 
   const totalAmount = findings.reduce((s, f) => s + Number(f.amount), 0)
 
@@ -76,7 +87,9 @@ export default function ResultsPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-semibold tracking-tight">Results</h1>
         <p className="mt-1 text-base text-muted-foreground">
-          Revenue leak opportunities identified from your 835 ERA uploads.
+          {uploadId
+            ? 'Findings for selected upload.'
+            : 'Revenue leak opportunities identified from your 835 ERA uploads.'}
         </p>
       </div>
 
@@ -112,6 +125,16 @@ export default function ResultsPage() {
             <p className="text-sm text-destructive">
               Could not load findings: {error}. Make sure the findings table exists (see{' '}
               <code>supabase/migrations/20260309000000_create_findings.sql</code>).
+            </p>
+          </Card>
+        )}
+
+        {!loading && findings.length === 0 && !error && (
+          <Card className="p-6">
+            <p className="text-sm text-muted-foreground">
+              {uploadId
+                ? 'No findings for this upload yet. Try running analysis again.'
+                : 'No findings yet. Upload and analyze an 835 ERA file to see results here.'}
             </p>
           </Card>
         )}
@@ -162,5 +185,13 @@ export default function ResultsPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function ResultsPage() {
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6"><p className="text-muted-foreground">Loading…</p></div>}>
+      <ResultsContent />
+    </Suspense>
   )
 }
