@@ -2,21 +2,32 @@ import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 
 /**
- * Supabase magic-link callback.
+ * Supabase auth callback.
  *
- * After exchanging the code for a session we check whether the user already
- * belongs to an account.  If not (first login), we:
- *   1. Create a new `accounts` row named after the user's email domain.
- *   2. Insert an `account_users` row linking the user as 'admin'.
+ * Handles two cases:
+ *   1. Magic-link / email confirmation — exchanges the `code` param for a session.
+ *   2. Password sign-up email confirmation — same flow.
  *
- * This keeps onboarding zero-friction: sign in → land on dashboard.
+ * After exchanging the code we ensure the user has an account row and
+ * account_users membership (zero-friction onboarding).
  */
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
+  const error = requestUrl.searchParams.get('error')
+  const errorDescription = requestUrl.searchParams.get('error_description')
+
+  // Supabase sometimes redirects here with an error param
+  if (error) {
+    console.error('[auth/callback] error from Supabase:', error, errorDescription)
+    return NextResponse.redirect(
+      new URL(`/login?error=${encodeURIComponent(error)}`, requestUrl.origin)
+    )
+  }
 
   if (!code) {
-    return NextResponse.redirect(new URL('/login?error=missing_code', requestUrl.origin))
+    // No code — this can happen if the user navigates here directly
+    return NextResponse.redirect(new URL('/login', requestUrl.origin))
   }
 
   try {
@@ -40,7 +51,6 @@ export async function GET(request: Request) {
       .maybeSingle()
 
     if (!existing) {
-      // First login — create a new account for this user
       const emailDomain = user.email?.split('@')[1] || 'practice'
       const practiceName = emailDomain
         .replace(/\.(com|net|org|io|health|care|clinic|med)$/, '')
@@ -56,19 +66,14 @@ export async function GET(request: Request) {
 
       if (accountError || !newAccount) {
         console.error('[auth/callback] create account error:', accountError?.message)
-        return NextResponse.redirect(new URL('/app/dashboard', requestUrl.origin))
-      }
+      } else {
+        const { error: memberError } = await supabase
+          .from('account_users')
+          .insert({ account_id: newAccount.id, user_id: user.id, role: 'admin' })
 
-      const { error: memberError } = await supabase
-        .from('account_users')
-        .insert({
-          account_id: newAccount.id,
-          user_id: user.id,
-          role: 'admin',
-        })
-
-      if (memberError) {
-        console.error('[auth/callback] create account_users error:', memberError.message)
+        if (memberError) {
+          console.error('[auth/callback] create account_users error:', memberError.message)
+        }
       }
     }
 
