@@ -1,110 +1,143 @@
-import { supabase } from './supabase'
+import type { SupabaseClient } from '@supabase/supabase-js'
+
+// ─── Types aligned to DB schema ────────────────────────────────────────────
 
 export type Upload = {
   id: string
   account_id: string
-  user_id: string
   filename: string
-  storage_path: string
-  mime_type: string | null
-  size_bytes: number | null
-  source_type: string | null
-  status: 'uploaded' | 'processing' | 'complete' | 'error'
+  source_type: 'era_835' | 'eob_pdf' | 'other'
+  status: 'uploaded' | 'analyzing' | 'processing' | 'complete' | 'error'
   error_message: string | null
+  storage_path: string
+  content_hash: string | null
+  size_bytes: number | null
+  mime_type: string | null
+  analyzed_at: string | null
   created_at: string
   updated_at: string
 }
 
-export async function getCurrentAccountId(userId: string): Promise<string | null> {
-  const { data, error } = await supabase
+export type Finding = {
+  id: string
+  account_id: string
+  upload_id: string
+  created_at: string
+  payer: string | null
+  service_date: string | null
+  procedure_code: string | null
+  billed_amount: number | null
+  allowed_amount: number | null
+  paid_amount: number | null
+  patient_responsibility: number | null
+  underpayment_amount: number | null
+  carc_codes: string[] | null
+  rarc_codes: string[] | null
+  finding_type: 'UNDERPAID' | 'DENIED_APPEALABLE' | 'DENIED_NON_APPEALABLE' | 'NEEDS_REVIEW' | 'INCOMPLETE_DATA'
+  confidence: 'High' | 'Medium' | 'Low'
+  action: string
+  rationale: string
+  evidence: Record<string, unknown>
+  status: 'open' | 'resolved' | 'ignored'
+}
+
+export type Account = {
+  id: string
+  name: string
+  contact_name: string | null
+  contact_phone: string | null
+  contact_email: string | null
+  created_at: string
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * Get the account_id for a given user. Returns null if user has no account.
+ * Accepts a Supabase client so it works with both browser and auth clients.
+ */
+export async function getCurrentAccountId(
+  client: SupabaseClient,
+  userId: string
+): Promise<string | null> {
+  const { data, error } = await client
     .from('account_users')
     .select('account_id')
     .eq('user_id', userId)
     .limit(1)
     .single()
 
-  if (error || !data) {
-    console.error('Error fetching account_id:', error)
-    return null
-  }
-
+  if (error || !data) return null
   return data.account_id
 }
 
-export async function createUpload(params: {
-  accountId: string
-  userId: string
-  filename: string
-  storagePath: string
-  mimeType: string | null
-  sizeBytes: number
-  sourceType: string
-}): Promise<Upload | null> {
-  const { data, error } = await supabase
+/**
+ * Create an upload record.
+ */
+export async function createUpload(
+  client: SupabaseClient,
+  params: {
+    accountId: string
+    filename: string
+    storagePath: string
+    sourceType: 'era_835' | 'eob_pdf' | 'other'
+    contentHash?: string
+  }
+): Promise<Upload | null> {
+  // Build insert payload — only include columns that exist in all DB versions.
+  // content_hash is optional and only inserted if the column exists (post-migration).
+  const insertPayload: Record<string, unknown> = {
+    account_id: params.accountId,
+    filename: params.filename,
+    storage_path: params.storagePath,
+    source_type: params.sourceType,
+    status: 'uploaded',
+  }
+  // content_hash is a post-migration column; include only when provided
+  // (Supabase will ignore unknown columns gracefully after migration)
+  if (params.contentHash) {
+    insertPayload.content_hash = params.contentHash
+  }
+
+  const { data, error } = await client
     .from('uploads')
-    .insert({
-      account_id: params.accountId,
-      user_id: params.userId,
-      filename: params.filename,
-      storage_path: params.storagePath,
-      mime_type: params.mimeType,
-      size_bytes: params.sizeBytes,
-      source_type: params.sourceType,
-      status: 'uploaded',
-    })
+    .insert(insertPayload)
     .select()
     .single()
 
   if (error || !data) {
-    console.error('Error creating upload:', error)
+    console.error('[database] createUpload error:', error?.message)
     return null
   }
-
   return data as Upload
 }
 
-export async function getUploadsForAccount(accountId: string): Promise<Upload[]> {
-  const { data, error } = await supabase
+/**
+ * Get all uploads for an account.
+ */
+export async function getUploadsForAccount(
+  client: SupabaseClient,
+  accountId: string
+): Promise<Upload[]> {
+  const { data, error } = await client
     .from('uploads')
     .select('*')
     .eq('account_id', accountId)
     .order('created_at', { ascending: false })
 
   if (error) {
-    console.error('Error fetching uploads:', error)
+    console.error('[database] getUploadsForAccount error:', error.message)
     return []
   }
-
   return (data as Upload[]) || []
 }
 
-export async function updateUploadStatus(
-  uploadId: string,
-  status: Upload['status'],
-  errorMessage?: string
-): Promise<boolean> {
-  const { error } = await supabase
-    .from('uploads')
-    .update({
-      status,
-      error_message: errorMessage || null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', uploadId)
-
-  if (error) {
-    console.error('Error updating upload status:', error)
-    return false
-  }
-
-  return true
-}
-
-export function getSourceTypeFromFilename(filename: string): string {
+/**
+ * Determine source_type from filename extension.
+ */
+export function getSourceTypeFromFilename(filename: string): 'era_835' | 'eob_pdf' | 'other' {
   const ext = filename.split('.').pop()?.toLowerCase()
-
-  if (ext === 'pdf') return 'pdf'
+  if (ext === 'pdf') return 'eob_pdf'
   if (ext === 'edi' || ext === 'x12' || ext === '835' || ext === 'txt') return 'era_835'
-
-  return 'unknown'
+  return 'other'
 }

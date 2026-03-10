@@ -3,19 +3,16 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
+import { getSupabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import type { User } from '@supabase/supabase-js'
 
-const ADMIN_EMAILS = ['admin@example.com', 'you@practice.com']
-
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const supabase = getSupabase()
   const router = useRouter()
   const pathname = usePathname()
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-
-  const isAdmin = user?.email && ADMIN_EMAILS.includes(user.email)
 
   useEffect(() => {
     const checkUser = async () => {
@@ -46,57 +43,35 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (!user) return null
 
+  const navItems = [
+    { href: '/app/dashboard', label: 'Dashboard' },
+    { href: '/app/upload', label: 'Uploads' },
+    { href: '/app/results', label: 'Results' },
+    { href: '/app/admin', label: 'Admin' },
+  ]
+
   return (
     <div className="min-h-screen bg-zinc-50">
       <nav className="border-b bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
           <div className="flex items-center gap-8">
             <Link href="/app/dashboard" className="text-xl font-semibold tracking-tight">
-              Revenue Leak Finder
+              Revenue Recovery Engine
             </Link>
             <div className="flex gap-6">
-              <Link
-                href="/app/dashboard"
-                className={`text-sm ${
-                  pathname === '/app/dashboard'
-                    ? 'font-medium text-foreground'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/app/upload"
-                className={`text-sm ${
-                  pathname === '/app/upload'
-                    ? 'font-medium text-foreground'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Uploads
-              </Link>
-              <Link
-                href="/app/results"
-                className={`text-sm ${
-                  pathname === '/app/results'
-                    ? 'font-medium text-foreground'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Results
-              </Link>
-              {isAdmin && (
+              {navItems.map(item => (
                 <Link
-                  href="/app/admin"
+                  key={item.href}
+                  href={item.href}
                   className={`text-sm ${
-                    pathname === '/app/admin'
+                    pathname === item.href
                       ? 'font-medium text-foreground'
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  Admin
+                  {item.label}
                 </Link>
-              )}
+              ))}
             </div>
           </div>
           <div className="flex items-center gap-4">

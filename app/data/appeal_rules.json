@@ -1,0 +1,177 @@
+{
+  "1": {
+    "appealable": true,
+    "template": "deductible_misapplied",
+    "description": "Deductible amount — may be misapplied or already satisfied"
+  },
+  "2": {
+    "appealable": true,
+    "template": "coinsurance_misapplied",
+    "description": "Coinsurance amount — verify calculation against contract"
+  },
+  "3": {
+    "appealable": true,
+    "template": "coinsurance_misapplied",
+    "description": "Co-payment amount — verify against plan terms"
+  },
+  "4": {
+    "appealable": true,
+    "template": "missing_info",
+    "description": "Procedure code inconsistent with modifier — resubmit with correct modifier"
+  },
+  "5": {
+    "appealable": true,
+    "template": "missing_info",
+    "description": "Procedure code inconsistent with place of service — verify and correct"
+  },
+  "16": {
+    "appealable": true,
+    "template": "missing_info",
+    "description": "Claim lacks information or has billing errors — correct and resubmit"
+  },
+  "18": {
+    "appealable": false,
+    "template": "generic_reconsideration",
+    "description": "Exact duplicate claim — non-appealable unless original was denied"
+  },
+  "22": {
+    "appealable": true,
+    "template": "generic_reconsideration",
+    "description": "May be covered by another payer — coordination of benefits issue"
+  },
+  "23": {
+    "appealable": true,
+    "template": "generic_reconsideration",
+    "description": "Prior payer adjudication impact — review COB"
+  },
+  "24": {
+    "appealable": false,
+    "template": "not_covered",
+    "description": "Covered under capitation agreement — typically non-appealable"
+  },
+  "26": {
+    "appealable": false,
+    "template": "not_covered",
+    "description": "Expenses incurred prior to coverage — non-appealable"
+  },
+  "27": {
+    "appealable": false,
+    "template": "not_covered",
+    "description": "Expenses incurred after coverage terminated — non-appealable"
+  },
+  "29": {
+    "appealable": true,
+    "template": "timely_filing",
+    "description": "Time limit for filing expired — appeal if proof of timely submission exists"
+  },
+  "35": {
+    "appealable": false,
+    "template": "not_covered",
+    "description": "Lifetime benefit maximum reached — non-appealable"
+  },
+  "39": {
+    "appealable": true,
+    "template": "medical_necessity",
+    "description": "Services denied at authorization — appeal with clinical documentation"
+  },
+  "45": {
+    "appealable": true,
+    "template": "contractual_adjustment",
+    "description": "Charge exceeds fee schedule/maximum allowable — verify contract rate"
+  },
+  "49": {
+    "appealable": true,
+    "template": "not_covered",
+    "description": "Non-covered routine/preventive exam — may be covered under preventive benefit"
+  },
+  "50": {
+    "appealable": true,
+    "template": "medical_necessity",
+    "description": "Not deemed medically necessary — appeal with clinical documentation"
+  },
+  "51": {
+    "appealable": true,
+    "template": "generic_reconsideration",
+    "description": "Pre-existing condition — may be appealable under ACA"
+  },
+  "55": {
+    "appealable": true,
+    "template": "medical_necessity",
+    "description": "Deemed experimental/investigational — appeal with evidence"
+  },
+  "58": {
+    "appealable": true,
+    "template": "generic_reconsideration",
+    "description": "Inappropriate place of service — verify and correct"
+  },
+  "59": {
+    "appealable": true,
+    "template": "bundled_included",
+    "description": "Multiple/concurrent procedure rules — may need modifier"
+  },
+  "96": {
+    "appealable": true,
+    "template": "not_covered",
+    "description": "Non-covered charges — review remark codes for specific reason"
+  },
+  "97": {
+    "appealable": true,
+    "template": "bundled_included",
+    "description": "Benefit included in another service — may need modifier 59/XE"
+  },
+  "107": {
+    "appealable": true,
+    "template": "missing_info",
+    "description": "Related/qualifying claim not identified — resubmit with reference"
+  },
+  "109": {
+    "appealable": false,
+    "template": "generic_reconsideration",
+    "description": "Not covered by this payer — send to correct payer"
+  },
+  "119": {
+    "appealable": false,
+    "template": "not_covered",
+    "description": "Benefit maximum reached — typically non-appealable"
+  },
+  "125": {
+    "appealable": true,
+    "template": "missing_info",
+    "description": "Submission/billing errors — correct and resubmit"
+  },
+  "146": {
+    "appealable": true,
+    "template": "missing_info",
+    "description": "Invalid diagnosis for dates of service — verify and correct"
+  },
+  "167": {
+    "appealable": true,
+    "template": "not_covered",
+    "description": "Diagnosis not covered — appeal with medical necessity documentation"
+  },
+  "170": {
+    "appealable": true,
+    "template": "generic_reconsideration",
+    "description": "Denied for provider type — verify credentialing and enrollment"
+  },
+  "197": {
+    "appealable": true,
+    "template": "medical_necessity",
+    "description": "Missing precertification/authorization — obtain retroactive auth if possible"
+  },
+  "204": {
+    "appealable": true,
+    "template": "not_covered",
+    "description": "Not covered under current benefit plan — verify member benefits"
+  },
+  "242": {
+    "appealable": true,
+    "template": "generic_reconsideration",
+    "description": "Not provided by network provider — appeal if emergency or no network provider available"
+  },
+  "253": {
+    "appealable": false,
+    "template": "generic_reconsideration",
+    "description": "Sequestration — mandated federal spending reduction, non-appealable"
+  }
+}

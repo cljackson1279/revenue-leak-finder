@@ -1,8 +1,7 @@
 'use client'
-
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { getSupabase } from '@/lib/supabase'
 import {
   getCurrentAccountId,
   createUpload,
@@ -12,13 +11,13 @@ import {
 } from '@/lib/database'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 
 export default function UploadPage() {
+  const supabase = getSupabase()
   const router = useRouter()
   const [uploads, setUploads] = useState<Upload[]>([])
   const [uploading, setUploading] = useState(false)
@@ -27,12 +26,9 @@ export default function UploadPage() {
   const [accountId, setAccountId] = useState<string | null>(null)
   const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set())
   const [autoOpenResults, setAutoOpenResults] = useState(true)
+  const [dragOver, setDragOver] = useState(false)
 
-  useEffect(() => {
-    loadUploads()
-  }, [])
-
-  const loadUploads = async () => {
+  const loadUploads = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
@@ -40,7 +36,7 @@ export default function UploadPage() {
         return
       }
 
-      const currentAccountId = await getCurrentAccountId(user.id)
+      const currentAccountId = await getCurrentAccountId(supabase, user.id)
       if (!currentAccountId) {
         setMessage({
           type: 'error',
@@ -51,7 +47,7 @@ export default function UploadPage() {
       }
 
       setAccountId(currentAccountId)
-      const uploadsData = await getUploadsForAccount(currentAccountId)
+      const uploadsData = await getUploadsForAccount(supabase, currentAccountId)
       setUploads(uploadsData)
     } catch (error) {
       console.error('Error loading uploads:', error)
@@ -62,28 +58,27 @@ export default function UploadPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = e.target.files
-    if (!selectedFiles || selectedFiles.length === 0) return
+  useEffect(() => {
+    loadUploads()
+  }, [loadUploads])
 
+  const handleUploadFiles = async (files: FileList | File[]) => {
     setUploading(true)
     setMessage(null)
 
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
-
       if (!accountId) throw new Error('No account ID available')
 
-      const fileArray = Array.from(selectedFiles)
+      const fileArray = Array.from(files)
       let successCount = 0
 
       for (const file of fileArray) {
         const storagePath = `${accountId}/${user.id}/${Date.now()}-${file.name}`
 
-        // Upload to Storage
         const { error: storageError } = await supabase.storage
           .from('uploads')
           .upload(storagePath, file)
@@ -93,14 +88,10 @@ export default function UploadPage() {
           continue
         }
 
-        // Insert into database
-        const upload = await createUpload({
+        const upload = await createUpload(supabase, {
           accountId,
-          userId: user.id,
           filename: file.name,
           storagePath,
-          mimeType: file.type || null,
-          sizeBytes: file.size,
           sourceType: getSourceTypeFromFilename(file.name),
         })
 
@@ -115,9 +106,6 @@ export default function UploadPage() {
       } else {
         setMessage({ type: 'error', text: 'Failed to upload files' })
       }
-
-      // Reset file input
-      e.target.value = ''
     } catch (error) {
       setMessage({
         type: 'error',
@@ -155,7 +143,7 @@ export default function UploadPage() {
     }
 
     let response: Response
-    let data: { error?: string; details?: string; status?: string; ok?: boolean; findings_count?: number }
+    let data: { error?: string; details?: string; ok?: boolean; findings_count?: number }
 
     try {
       response = await fetch('/api/analyze', {
@@ -190,7 +178,6 @@ export default function UploadPage() {
       return
     }
 
-    // Success
     setUploads(prev =>
       prev.map(u =>
         u.id === uploadId
@@ -207,35 +194,29 @@ export default function UploadPage() {
     }
   }
 
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    if (e.dataTransfer.files.length > 0) {
+      handleUploadFiles(e.dataTransfer.files)
+    }
+  }
+
   const formatBytes = (bytes: number | null) => {
-    if (!bytes || bytes === 0) return '0 Bytes'
+    if (!bytes || bytes === 0) return '0 B'
     const k = 1024
-    const sizes = ['Bytes', 'KB', 'MB']
+    const sizes = ['B', 'KB', 'MB']
     const i = Math.floor(Math.log(bytes) / Math.log(k))
     return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString()
-  }
-
   const getStatusBadgeVariant = (status: Upload['status']) => {
     switch (status) {
-      case 'uploaded':
-        return 'outline'
-      case 'processing':
-        return 'default'
-      case 'complete':
-        return 'default'
-      case 'error':
-        return 'destructive'
-      default:
-        return 'outline'
+      case 'complete': return 'default'
+      case 'error': return 'destructive'
+      default: return 'outline'
     }
   }
-
-  const readinessLevel =
-    uploads.length >= 3 ? 'improve' : uploads.length >= 1 ? 'ready' : 'not-ready'
 
   if (loading) {
     return (
@@ -248,71 +229,70 @@ export default function UploadPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       <div className="mb-8">
-        <h1 className="text-3xl font-semibold tracking-tight">Upload Files</h1>
-        <p className="mt-1 text-base text-muted-foreground">
-          Upload EOB PDFs, 835 ERA files, or other billing documents for analysis.
+        <h1 className="text-2xl font-semibold tracking-tight">Upload Files</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Upload 835 ERA files (.edi, .x12, .835, .txt) or EOB PDFs (.pdf) for analysis.
         </p>
       </div>
 
       <div className="space-y-6">
-        <Card className="p-6">
-          <h2 className="text-lg font-medium">Readiness Meter</h2>
-          <Separator className="my-4" />
-          <div className="flex gap-4">
-            <Badge variant={readinessLevel === 'not-ready' ? 'default' : 'outline'}>
-              Not Ready
-            </Badge>
-            <Badge variant={readinessLevel === 'ready' ? 'default' : 'outline'}>Ready</Badge>
-            <Badge variant={readinessLevel === 'improve' ? 'default' : 'outline'}>
-              Ready (Improve accuracy)
-            </Badge>
-          </div>
-          <p className="mt-4 text-sm text-muted-foreground">
-            Upload at least 1 file to begin analysis. More files improve accuracy.
-          </p>
-        </Card>
-
-        <Card className="p-6">
-          <h2 className="text-lg font-medium">File Upload</h2>
-          <Separator className="my-4" />
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="file-upload">Select files</Label>
-              <Input
-                id="file-upload"
-                type="file"
-                accept=".pdf,.txt,.edi,.835,.x12"
-                multiple
-                onChange={handleFileChange}
-                disabled={uploading || !accountId}
-              />
-              <p className="text-sm text-muted-foreground">
-                Accepted formats: PDF, TXT, EDI, 835, X12
+        {/* Drop Zone */}
+        <Card
+          className={`flex cursor-pointer flex-col items-center justify-center border-2 border-dashed p-12 transition-colors ${
+            dragOver ? 'border-blue-500 bg-blue-50' : 'border-zinc-300 hover:border-zinc-400'
+          } ${uploading ? 'pointer-events-none opacity-60' : ''}`}
+          onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleDrop}
+          onClick={() => {
+            if (uploading || !accountId) return
+            const input = document.createElement('input')
+            input.type = 'file'
+            input.multiple = true
+            input.accept = '.edi,.x12,.835,.txt,.pdf'
+            input.onchange = e => {
+              const files = (e.target as HTMLInputElement).files
+              if (files) handleUploadFiles(files)
+            }
+            input.click()
+          }}
+        >
+          {uploading ? (
+            <p className="text-sm text-muted-foreground">Uploading...</p>
+          ) : (
+            <>
+              <p className="mb-2 text-base font-medium">
+                Drop files here or click to browse
               </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <input
-                id="auto-open"
-                type="checkbox"
-                checked={autoOpenResults}
-                onChange={e => setAutoOpenResults(e.target.checked)}
-                className="h-4 w-4 cursor-pointer"
-              />
-              <Label htmlFor="auto-open" className="cursor-pointer text-sm font-normal">
-                Auto-open Results after analysis
-              </Label>
-            </div>
-
-            {message && (
-              <Alert variant={message.type === 'error' ? 'destructive' : 'default'}>
-                <AlertDescription>{message.text}</AlertDescription>
-              </Alert>
-            )}
-          </div>
+              <p className="text-sm text-muted-foreground">
+                Supports 835 ERA (.edi, .x12, .835, .txt) and EOB PDF (.pdf)
+              </p>
+            </>
+          )}
         </Card>
 
+        {/* Options */}
+        <div className="flex items-center gap-2">
+          <input
+            id="auto-open"
+            type="checkbox"
+            checked={autoOpenResults}
+            onChange={e => setAutoOpenResults(e.target.checked)}
+            className="h-4 w-4 cursor-pointer"
+          />
+          <Label htmlFor="auto-open" className="cursor-pointer text-sm font-normal">
+            Auto-open Results after analysis
+          </Label>
+        </div>
+
+        {/* Messages */}
+        {message && (
+          <Alert variant={message.type === 'error' ? 'destructive' : 'default'}>
+            <AlertDescription>{message.text}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Uploads List */}
         {uploads.length > 0 && (
           <Card className="p-6">
             <h2 className="text-lg font-medium">Uploads ({uploads.length})</h2>
@@ -327,8 +307,8 @@ export default function UploadPage() {
                     <p className="text-sm font-medium">{upload.filename}</p>
                     <div className="mt-1 flex gap-4 text-xs text-muted-foreground">
                       <span>{formatBytes(upload.size_bytes)}</span>
-                      <span>{upload.source_type?.toUpperCase()}</span>
-                      <span>{formatDate(upload.created_at)}</span>
+                      <span>{upload.source_type === 'era_835' ? '835 ERA' : upload.source_type === 'eob_pdf' ? 'EOB PDF' : upload.source_type?.toUpperCase()}</span>
+                      <span>{new Date(upload.created_at).toLocaleString()}</span>
                     </div>
                     {upload.error_message && (
                       <p className="mt-1 text-xs text-red-600">{upload.error_message}</p>
@@ -339,28 +319,21 @@ export default function UploadPage() {
                       {upload.status}
                     </Badge>
                     {upload.status === 'complete' && (
-                      <>
-                        <Button
-                          size="sm"
-                          onClick={() => router.push(`/app/results?upload_id=${upload.id}`)}
-                        >
-                          View Results
-                        </Button>
-                        <a
-                          href={`/app/results?upload_id=${upload.id}`}
-                          className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                        >
-                          View Results
-                        </a>
-                      </>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => router.push(`/app/results?upload_id=${upload.id}`)}
+                      >
+                        View Results
+                      </Button>
                     )}
-                    {upload.status === 'uploaded' && (
+                    {(upload.status === 'uploaded' || upload.status === 'error') && (
                       <Button
                         size="sm"
                         onClick={() => handleRunAnalysis(upload.id)}
                         disabled={analyzingIds.has(upload.id)}
                       >
-                        {analyzingIds.has(upload.id) ? 'Analyzing…' : 'Run Analysis'}
+                        {analyzingIds.has(upload.id) ? 'Analyzing...' : 'Analyze'}
                       </Button>
                     )}
                   </div>
