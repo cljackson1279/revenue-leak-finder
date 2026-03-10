@@ -7,8 +7,20 @@
 CREATE TABLE IF NOT EXISTS public.accounts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
+  contact_name text,
+  contact_phone text,
+  contact_email text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Add contact columns if they don't exist (idempotent for existing deployments)
+DO $$ BEGIN
+  ALTER TABLE public.accounts ADD COLUMN IF NOT EXISTS contact_name text;
+  ALTER TABLE public.accounts ADD COLUMN IF NOT EXISTS contact_phone text;
+  ALTER TABLE public.accounts ADD COLUMN IF NOT EXISTS contact_email text;
+EXCEPTION WHEN others THEN
+  RAISE NOTICE 'accounts contact columns migration skipped: %', SQLERRM;
+END $$;
 
 -- ─── 2. ACCOUNT_USERS ───────────────────────────────────────────────────────
 -- Spec: composite PK (account_id, user_id), no surrogate id

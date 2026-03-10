@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Revenue Recovery Engine — App
 
-## Getting Started
+This is the Next.js application for the Revenue Recovery Engine. See the [root README](../README.md) for full architecture documentation and the [Production Checklist](../PRODUCTION_CHECKLIST.md) for deployment instructions.
 
-First, run the development server:
+## Quick Start
 
 ```bash
+# 1. Install dependencies
+npm install
+
+# 2. Create environment file (never commit this)
+cp .env.example .env.local
+# Edit .env.local with your Supabase credentials
+
+# 3. Run development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Available Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Command | Description |
+|---|---|
+| `npm run dev` | Start development server (Turbopack) |
+| `npm run build` | Production build |
+| `npm run start` | Start production server |
+| `npm run lint` | Run ESLint |
+| `npm test` | Run Jest golden tests |
 
-## Learn More
+## Environment Variables
 
-To learn more about Next.js, take a look at the following resources:
+| Variable | Required | Description |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anonymous key (safe for browser) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes (server only) | Supabase service role key — never expose to browser |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Test Fixtures
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| File | Type | Description |
+|---|---|---|
+| `fixtures/835/sample1.edi` | 835 ERA | BCBS underpayment scenario (3 claims, CO-45) |
+| `fixtures/835/sample2.edi` | 835 ERA | Aetna PR adjustments |
+| `fixtures/835/sample3_denials.edi` | 835 ERA | UHC denial scenarios (CARC 50, 29, 97) |
+| `fixtures/pdf/sample_eob1.pdf` | EOB PDF | BCBS text-extractable EOB with underpayment |
+| `fixtures/pdf/sample_eob2.pdf` | EOB PDF | Aetna EOB with denial codes (CO-50, CO-97) |
 
-## Deploy on Vercel
+## API Endpoints
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/analyze` | POST | Parse uploaded file and compute findings |
+| `/api/appeal-packet` | POST | Generate PDF appeal letter |
+| `/api/export-csv` | GET | Export findings as CSV |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+All API endpoints require a Bearer token (`Authorization: Bearer <access_token>`).
+
+## Key Libraries
+
+- **Next.js 16** (App Router, Turbopack)
+- **@supabase/ssr** — cookie-based auth for SSR
+- **pdf-parse** — PDF text extraction
+- **jspdf** — server-side PDF generation for appeal letters
+- **shadcn/ui** — component library
+- **Jest + ts-jest** — testing

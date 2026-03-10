@@ -6,6 +6,8 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import carcCodes from '@/data/carc.json'
+import rarcCodes from '@/data/rarc.json'
 
 type Finding = {
   id: string
@@ -30,6 +32,19 @@ type Finding = {
   upload_id: string
 }
 
+const carcMap = carcCodes as Record<string, { description: string }>
+const rarcMap = rarcCodes as Record<string, { description: string }>
+
+function getCarcDescription(code: string): string | null {
+  // CARC codes may be stored as "45", "CO-45", or "CO45"
+  const normalized = code.replace(/^(CO|PR|OA|PI)-?/i, '')
+  return carcMap[normalized]?.description || carcMap[code]?.description || null
+}
+
+function getRarcDescription(code: string): string | null {
+  return rarcMap[code]?.description || null
+}
+
 export default function FindingDetailPage() {
   const supabase = getSupabase()
   const params = useParams()
@@ -39,6 +54,7 @@ export default function FindingDetailPage() {
   const [finding, setFinding] = useState<Finding | null>(null)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
+  const [generatingPacket, setGeneratingPacket] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -67,6 +83,40 @@ export default function FindingDetailPage() {
     setUpdating(false)
   }
 
+  const handleGenerateLetter = async () => {
+    if (!finding) return
+    setGeneratingPacket(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { alert('Session expired — please sign in again'); return }
+
+      const res = await fetch('/api/appeal-packet', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ finding_ids: [finding.id] }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        alert(err.error || 'Failed to generate appeal packet')
+        return
+      }
+
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `appeal-${finding.procedure_code || finding.id}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setGeneratingPacket(false)
+    }
+  }
+
   const formatCurrency = (amount: number | null) =>
     amount != null ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount) : '—'
 
@@ -80,6 +130,9 @@ export default function FindingDetailPage() {
       default: return 'bg-gray-100 text-gray-700'
     }
   }
+
+  const isAppealable = (type: string) =>
+    type === 'UNDERPAID' || type === 'DENIED_APPEALABLE'
 
   if (loading) {
     return (
@@ -108,15 +161,15 @@ export default function FindingDetailPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex items-start justify-between">
         <div>
-          <Button variant="ghost" size="sm" onClick={() => router.back()} className="mb-2">
+          <Button variant="ghost" size="sm" onClick={() => router.back()} className="mb-2 -ml-2">
             &larr; Back to results
           </Button>
           <h1 className="text-2xl font-semibold tracking-tight">
             Finding: {finding.procedure_code || 'N/A'}
           </h1>
-          <div className="mt-1 flex items-center gap-3">
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${typeBadgeClass(finding.finding_type)}`}>
               {finding.finding_type.replace(/_/g, ' ')}
             </span>
@@ -132,14 +185,25 @@ export default function FindingDetailPage() {
             </Badge>
           </div>
         </div>
-        {finding.underpayment_amount && finding.underpayment_amount > 0 && (
-          <div className="text-right">
-            <p className="text-sm text-muted-foreground">Underpayment</p>
-            <p className="text-3xl font-semibold text-red-600">
-              {formatCurrency(finding.underpayment_amount)}
-            </p>
-          </div>
-        )}
+        <div className="flex flex-col items-end gap-2">
+          {finding.underpayment_amount && finding.underpayment_amount > 0 && (
+            <div className="text-right">
+              <p className="text-xs text-muted-foreground">Potential Recovery</p>
+              <p className="text-3xl font-semibold text-red-600">
+                {formatCurrency(finding.underpayment_amount)}
+              </p>
+            </div>
+          )}
+          {isAppealable(finding.finding_type) && (
+            <Button
+              size="sm"
+              onClick={handleGenerateLetter}
+              disabled={generatingPacket}
+            >
+              {generatingPacket ? 'Generating...' : 'Generate Appeal Letter'}
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="space-y-6">
@@ -160,8 +224,8 @@ export default function FindingDetailPage() {
               <p className="font-mono text-sm font-medium">{finding.procedure_code || '—'}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">CARC Codes</p>
-              <p className="font-mono text-sm">{finding.carc_codes?.join(', ') || '—'}</p>
+              <p className="text-xs text-muted-foreground">Upload ID</p>
+              <p className="font-mono text-xs text-muted-foreground">{finding.upload_id}</p>
             </div>
           </div>
         </Card>
@@ -207,54 +271,139 @@ export default function FindingDetailPage() {
           ) : null}
         </Card>
 
+        {/* CARC / RARC Codes with WPC descriptions */}
+        {((finding.carc_codes && finding.carc_codes.length > 0) ||
+          (finding.rarc_codes && finding.rarc_codes.length > 0)) && (
+          <Card className="p-6">
+            <div className="mb-1 flex items-center justify-between">
+              <h2 className="text-lg font-medium">Adjustment Reason Codes</h2>
+              <span className="text-xs text-muted-foreground">
+                Source:{' '}
+                <a
+                  href="https://www.wpc-edi.com/reference/codelists/healthcare/claim-adjustment-reason-codes/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-foreground"
+                >
+                  WPC (Washington Publishing Company)
+                </a>
+              </span>
+            </div>
+            <Separator className="mb-4" />
+
+            {finding.carc_codes && finding.carc_codes.length > 0 && (
+              <div className="mb-4">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  CARC — Claim Adjustment Reason Codes
+                </p>
+                <div className="space-y-2">
+                  {finding.carc_codes.map(code => {
+                    const desc = getCarcDescription(code)
+                    return (
+                      <div key={code} className="rounded border bg-zinc-50 px-3 py-2">
+                        <div className="flex items-start gap-3">
+                          <span className="mt-0.5 shrink-0 font-mono text-xs font-semibold">{code}</span>
+                          <p className="text-xs leading-relaxed text-muted-foreground">
+                            {desc || 'Description not available in cached code list. See WPC for current definitions.'}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {finding.rarc_codes && finding.rarc_codes.length > 0 && (
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  RARC — Remittance Advice Remark Codes
+                </p>
+                <div className="space-y-2">
+                  {finding.rarc_codes.map(code => {
+                    const desc = getRarcDescription(code)
+                    return (
+                      <div key={code} className="rounded border bg-zinc-50 px-3 py-2">
+                        <div className="flex items-start gap-3">
+                          <span className="mt-0.5 shrink-0 font-mono text-xs font-semibold">{code}</span>
+                          <p className="text-xs leading-relaxed text-muted-foreground">
+                            {desc || 'Description not available in cached code list. See WPC for current definitions.'}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </Card>
+        )}
+
         {/* Rationale & Action */}
         <Card className="p-6">
-          <h2 className="mb-4 text-lg font-medium">Rationale</h2>
-          <p className="text-sm leading-relaxed">{finding.rationale}</p>
+          <h2 className="mb-3 text-lg font-medium">Rationale</h2>
+          <p className="text-sm leading-relaxed text-muted-foreground">{finding.rationale}</p>
           <Separator className="my-4" />
-          <h2 className="mb-4 text-lg font-medium">Recommended Action</h2>
+          <h2 className="mb-3 text-lg font-medium">Recommended Next Steps</h2>
           <p className="text-sm leading-relaxed">{finding.action}</p>
         </Card>
 
         {/* Evidence (non-PHI) */}
         <Card className="p-6">
-          <h2 className="mb-4 text-lg font-medium">Evidence</h2>
-          {'claim_id' in source && source.claim_id ? (
-            <div className="mb-2">
-              <span className="text-xs text-muted-foreground">Claim ID: </span>
-              <span className="font-mono text-xs">{String(source.claim_id)}</span>
-            </div>
-          ) : null}
-          {'trace_number' in source && source.trace_number ? (
-            <div className="mb-2">
-              <span className="text-xs text-muted-foreground">Trace Number: </span>
-              <span className="font-mono text-xs">{String(source.trace_number)}</span>
-            </div>
-          ) : null}
-          {'segment_indices' in source && source.segment_indices ? (
-            <div className="mb-2">
-              <span className="text-xs text-muted-foreground">Segment Indices: </span>
-              <span className="font-mono text-xs">{JSON.stringify(source.segment_indices)}</span>
-            </div>
-          ) : null}
+          <h2 className="mb-4 text-lg font-medium">Evidence References</h2>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Non-PHI identifiers and segment references only. No patient data stored.
+          </p>
+
+          <div className="space-y-1">
+            {'claim_id' in source && source.claim_id ? (
+              <div className="flex gap-2 text-xs">
+                <span className="w-36 shrink-0 text-muted-foreground">Claim ID:</span>
+                <span className="font-mono">{String(source.claim_id)}</span>
+              </div>
+            ) : null}
+            {'trace_number' in source && source.trace_number ? (
+              <div className="flex gap-2 text-xs">
+                <span className="w-36 shrink-0 text-muted-foreground">Trace Number:</span>
+                <span className="font-mono">{String(source.trace_number)}</span>
+              </div>
+            ) : null}
+            {'payer_name' in source && source.payer_name ? (
+              <div className="flex gap-2 text-xs">
+                <span className="w-36 shrink-0 text-muted-foreground">Payer (N1):</span>
+                <span className="font-mono">{String(source.payer_name)}</span>
+              </div>
+            ) : null}
+            {'segment_indices' in source && source.segment_indices ? (
+              <div className="flex gap-2 text-xs">
+                <span className="w-36 shrink-0 text-muted-foreground">Segment Indices:</span>
+                <span className="font-mono">{JSON.stringify(source.segment_indices)}</span>
+              </div>
+            ) : null}
+          </div>
+
           {'adjustments' in codes && Array.isArray(codes.adjustments) && codes.adjustments.length > 0 ? (
             <div className="mt-4">
-              <p className="mb-2 text-xs font-medium text-muted-foreground">Adjustments</p>
+              <p className="mb-2 text-xs font-medium text-muted-foreground">CAS Adjustments</p>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b">
-                      <th className="px-2 py-1 text-left">Group</th>
-                      <th className="px-2 py-1 text-left">CARC</th>
-                      <th className="px-2 py-1 text-right">Amount</th>
+                      <th className="px-2 py-1 text-left font-medium">Group</th>
+                      <th className="px-2 py-1 text-left font-medium">CARC</th>
+                      <th className="px-2 py-1 text-right font-medium">Amount</th>
+                      <th className="px-2 py-1 text-left font-medium">Description</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(codes.adjustments as Array<{ group: string; code: string; amount: number }>).map((adj, i) => (
                       <tr key={i} className="border-b last:border-0">
-                        <td className="px-2 py-1">{adj.group}</td>
+                        <td className="px-2 py-1 font-mono">{adj.group}</td>
                         <td className="px-2 py-1 font-mono">{adj.code}</td>
                         <td className="px-2 py-1 text-right">{formatCurrency(adj.amount)}</td>
+                        <td className="px-2 py-1 text-muted-foreground">
+                          {getCarcDescription(adj.code) || '—'}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -266,29 +415,32 @@ export default function FindingDetailPage() {
 
         {/* Status Management */}
         <Card className="p-6">
-          <h2 className="mb-4 text-lg font-medium">Status</h2>
+          <h2 className="mb-4 text-lg font-medium">Update Status</h2>
           <div className="flex flex-wrap gap-2">
-            {['open', 'in_progress', 'resolved', 'dismissed'].map(s => (
+            {[
+              { value: 'open', label: 'Open' },
+              { value: 'resolved', label: 'Mark Resolved' },
+              { value: 'ignored', label: 'Ignore' },
+            ].map(s => (
               <Button
-                key={s}
+                key={s.value}
                 size="sm"
-                variant={finding.status === s ? 'default' : 'outline'}
-                onClick={() => updateStatus(s)}
-                disabled={updating || finding.status === s}
+                variant={finding.status === s.value ? 'default' : 'outline'}
+                onClick={() => updateStatus(s.value)}
+                disabled={updating || finding.status === s.value}
               >
-                {s.replace(/_/g, ' ')}
+                {s.label}
               </Button>
             ))}
           </div>
           <p className="mt-3 text-xs text-muted-foreground">
-            Last updated: {new Date(finding.updated_at).toLocaleString()}
+            Last updated: {new Date(finding.updated_at || finding.created_at).toLocaleString()}
           </p>
         </Card>
 
         {/* Metadata */}
         <div className="text-xs text-muted-foreground">
-          <p>Finding ID: {finding.id}</p>
-          <p>Upload ID: {finding.upload_id}</p>
+          <p>Finding ID: <span className="font-mono">{finding.id}</span></p>
           <p>Created: {new Date(finding.created_at).toLocaleString()}</p>
         </div>
       </div>

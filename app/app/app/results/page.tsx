@@ -36,6 +36,8 @@ function ResultsContent() {
   const [findings, setFindings] = useState<Finding[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [generatingId, setGeneratingId] = useState<string | null>(null)
 
   // Filters
   const [filterType, setFilterType] = useState<string>('')
@@ -87,6 +89,50 @@ function ResultsContent() {
   useEffect(() => {
     loadFindings()
   }, [loadFindings])
+
+  const updateStatus = async (findingId: string, newStatus: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setUpdatingId(findingId)
+    const { error: updateError } = await supabase
+      .from('findings')
+      .update({ status: newStatus })
+      .eq('id', findingId)
+
+    if (!updateError) {
+      setFindings(prev => prev.map(f => f.id === findingId ? { ...f, status: newStatus } : f))
+    }
+    setUpdatingId(null)
+  }
+
+  const handleGenerateLetter = async (finding: Finding, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setGeneratingId(finding.id)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const res = await fetch('/api/appeal-packet', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ finding_ids: [finding.id] }),
+      })
+
+      if (res.ok) {
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `appeal-${finding.procedure_code || finding.id}.pdf`
+        a.click()
+        URL.revokeObjectURL(url)
+      }
+    } finally {
+      setGeneratingId(null)
+    }
+  }
 
   const totalRecovery = findings
     .filter(f => f.underpayment_amount && f.underpayment_amount > 0)
@@ -161,8 +207,11 @@ function ResultsContent() {
     }
   }
 
+  const isAppealable = (type: string) =>
+    type === 'UNDERPAID' || type === 'DENIED_APPEALABLE'
+
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Results</h1>
@@ -180,7 +229,7 @@ function ResultsContent() {
         </div>
       </div>
 
-      {/* Summary Card */}
+      {/* Summary Cards */}
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <Card className="p-6">
           <p className="text-sm text-muted-foreground">Total Potential Recovery</p>
@@ -191,10 +240,16 @@ function ResultsContent() {
         <Card className="p-6">
           <p className="text-sm text-muted-foreground">Findings</p>
           <p className="text-3xl font-semibold tracking-tight">{findings.length}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {findings.filter(f => f.status === 'open').length} open
+          </p>
         </Card>
         <Card className="p-6">
           <p className="text-sm text-muted-foreground">Payers</p>
           <p className="text-3xl font-semibold tracking-tight">{uniquePayers.length}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {findings.filter(f => isAppealable(f.finding_type)).length} appealable
+          </p>
         </Card>
       </div>
 
@@ -251,9 +306,8 @@ function ResultsContent() {
             >
               <option value="">All</option>
               <option value="open">Open</option>
-              <option value="in_progress">In Progress</option>
               <option value="resolved">Resolved</option>
-              <option value="dismissed">Dismissed</option>
+              <option value="ignored">Ignored</option>
             </select>
           </div>
         </div>
@@ -286,14 +340,14 @@ function ResultsContent() {
                 <tr className="border-b text-left">
                   <th className="px-4 py-3 font-medium">Procedure</th>
                   <th className="px-4 py-3 font-medium">Payer</th>
-                  <th className="px-4 py-3 font-medium">Service Date</th>
+                  <th className="px-4 py-3 font-medium">Date</th>
                   <th className="px-4 py-3 font-medium">Type</th>
                   <th className="px-4 py-3 font-medium text-right">Billed</th>
-                  <th className="px-4 py-3 font-medium text-right">Allowed</th>
                   <th className="px-4 py-3 font-medium text-right">Paid</th>
-                  <th className="px-4 py-3 font-medium text-right">Underpayment</th>
-                  <th className="px-4 py-3 font-medium">Confidence</th>
+                  <th className="px-4 py-3 font-medium text-right">Recovery</th>
+                  <th className="px-4 py-3 font-medium">Conf.</th>
                   <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -312,10 +366,11 @@ function ResultsContent() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right text-xs">{formatCurrency(f.billed_amount)}</td>
-                    <td className="px-4 py-3 text-right text-xs">{formatCurrency(f.allowed_amount)}</td>
                     <td className="px-4 py-3 text-right text-xs">{formatCurrency(f.paid_amount)}</td>
                     <td className="px-4 py-3 text-right font-medium text-red-600">
-                      {f.underpayment_amount ? formatCurrency(f.underpayment_amount) : '—'}
+                      {f.underpayment_amount && f.underpayment_amount > 0
+                        ? formatCurrency(f.underpayment_amount)
+                        : '—'}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-xs ${
@@ -327,14 +382,74 @@ function ResultsContent() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <Badge variant={f.status === 'open' ? 'outline' : f.status === 'resolved' ? 'default' : 'secondary'}>
+                      <Badge variant={
+                        f.status === 'open' ? 'outline' :
+                        f.status === 'resolved' ? 'default' :
+                        'secondary'
+                      }>
                         {f.status}
                       </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div
+                        className="flex items-center gap-1"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        {isAppealable(f.finding_type) && f.status === 'open' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-xs"
+                            disabled={generatingId === f.id}
+                            onClick={e => handleGenerateLetter(f, e)}
+                          >
+                            {generatingId === f.id ? '...' : 'Letter'}
+                          </Button>
+                        )}
+                        {f.status === 'open' && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs text-green-700 hover:bg-green-50"
+                            disabled={updatingId === f.id}
+                            onClick={e => updateStatus(f.id, 'resolved', e)}
+                          >
+                            Resolve
+                          </Button>
+                        )}
+                        {f.status === 'open' && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs text-muted-foreground hover:bg-zinc-100"
+                            disabled={updatingId === f.id}
+                            onClick={e => updateStatus(f.id, 'ignored', e)}
+                          >
+                            Ignore
+                          </Button>
+                        )}
+                        {f.status !== 'open' && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs text-muted-foreground hover:bg-zinc-100"
+                            disabled={updatingId === f.id}
+                            onClick={e => updateStatus(f.id, 'open', e)}
+                          >
+                            Reopen
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+          <Separator />
+          <div className="px-4 py-3 text-xs text-muted-foreground">
+            Showing {findings.length} finding{findings.length !== 1 ? 's' : ''}.
+            Click any row to view full detail.
           </div>
         </Card>
       )}
@@ -348,7 +463,7 @@ function ResultsContent() {
 
 export default function ResultsPage() {
   return (
-    <Suspense fallback={<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6"><p className="text-muted-foreground">Loading...</p></div>}>
+    <Suspense fallback={<div className="mx-auto max-w-7xl px-4 py-8 sm:px-6"><p className="text-muted-foreground">Loading...</p></div>}>
       <ResultsContent />
     </Suspense>
   )
