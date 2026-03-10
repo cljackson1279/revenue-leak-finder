@@ -64,62 +64,89 @@ const MIN_TEXT_DENSITY = 50  // chars per page threshold for "has text"
 // ─── Text extraction ───────────────────────────────────────────────────────
 
 export async function extractPdfText(buffer: Buffer): Promise<{ text: string; pageCount: number }> {
+  // ── Strategy 1: unpdf (serverless-safe, no filesystem font dependencies) ──
+  // unpdf returns text as an array of page strings (one per page), each with \n line breaks.
+  // We join pages with \n\n to preserve line structure for the parser.
   try {
-    // pdf-parse v2 exports PDFParse class, not a default function
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { extractText } = require('unpdf')
+    const uint8 = new Uint8Array(buffer)
+    const result = await extractText(uint8)  // do NOT use mergePages:true — it strips newlines
+    const pageCount = result.totalPages || 1
+
+    let fullText = ''
+    if (Array.isArray(result.text)) {
+      // Each element is a page's text string with embedded newlines
+      fullText = result.text.join('\n\n').trim()
+    } else if (typeof result.text === 'string') {
+      fullText = result.text.trim()
+    }
+
+    if (fullText.length > 20) {
+      console.log('[parsePdf] unpdf extraction succeeded:', fullText.length, 'chars,', pageCount, 'pages')
+      return { text: fullText, pageCount }
+    }
+    console.warn('[parsePdf] unpdf returned empty text, trying fallback')
+  } catch (error) {
+    console.error('[parsePdf] unpdf extraction failed:', error instanceof Error ? error.message : 'unknown')
+  }
+
+  // ── Strategy 2: pdf-parse v2 (PDFParse class API) ──
+  try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const pdfParseModule = require('pdf-parse')
     const PDFParse = pdfParseModule.PDFParse || pdfParseModule.default || pdfParseModule
 
-    if (typeof PDFParse !== 'function') {
-      throw new Error('PDFParse is not a function')
-    }
+    if (typeof PDFParse === 'function') {
+      const uint8 = new Uint8Array(buffer)
+      const parser = new PDFParse(uint8, { verbosity: 0 })
+      const result = await parser.getText()
 
-    const uint8 = new Uint8Array(buffer)
-    const parser = new PDFParse(uint8, { verbosity: 0 })
-    const result = await parser.getText()
+      let fullText = ''
+      let pageCount = 1
 
-    let fullText = ''
-    let pageCount = 1
-
-    if (result && result.pages && Array.isArray(result.pages)) {
-      pageCount = result.pages.length || 1
-      // v2 API: result.pages is [{text, num}, ...]
-      fullText = result.pages.map((p: { text?: string }) => p.text || '').join('\n\n')
-      // Also check result.text as a fallback if pages produced empty text
-      if (!fullText.trim() && result.text) {
+      if (result && result.pages && Array.isArray(result.pages)) {
+        pageCount = result.pages.length || 1
+        fullText = result.pages.map((p: { text?: string }) => p.text || '').join('\n\n')
+        if (!fullText.trim() && result.text) fullText = result.text
+      } else if (typeof result === 'string') {
+        fullText = result
+      } else if (result && result.text) {
         fullText = result.text
+        pageCount = result.numpages || result.pageCount || result.total || 1
       }
-    } else if (typeof result === 'string') {
-      fullText = result
-    } else if (result && result.text) {
-      fullText = result.text
-      pageCount = result.numpages || result.pageCount || result.total || 1
-    }
 
-    // v2 also has result.text with the full concatenated text
-    if (!fullText.trim() && result && typeof result.text === 'string') {
-      fullText = result.text
-      pageCount = result.total || result.pages?.length || 1
-    }
+      if (!fullText.trim() && result && typeof result.text === 'string') {
+        fullText = result.text
+        pageCount = result.total || result.pages?.length || 1
+      }
 
-    return { text: fullText, pageCount }
+      if (fullText.trim().length > 20) {
+        console.log('[parsePdf] pdf-parse v2 extraction succeeded:', fullText.length, 'chars')
+        return { text: fullText, pageCount }
+      }
+    }
   } catch (error) {
     console.error('[parsePdf] pdf-parse v2 extraction failed:', error instanceof Error ? error.message : 'unknown')
-
-    // Fallback: try legacy pdf-parse API (v1 style)
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const pdfParse = require('pdf-parse')
-      if (typeof pdfParse === 'function') {
-        const data = await pdfParse(buffer)
-        return { text: data.text || '', pageCount: data.numpages || 1 }
-      }
-    } catch {
-      // Both methods failed
-    }
-
-    return { text: '', pageCount: 0 }
   }
+
+  // ── Strategy 3: pdf-parse legacy (v1 function API) ──
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pdfParse = require('pdf-parse')
+    if (typeof pdfParse === 'function') {
+      const data = await pdfParse(buffer)
+      if (data.text && data.text.trim().length > 20) {
+        console.log('[parsePdf] pdf-parse legacy extraction succeeded:', data.text.length, 'chars')
+        return { text: data.text, pageCount: data.numpages || 1 }
+      }
+    }
+  } catch (error) {
+    console.error('[parsePdf] pdf-parse legacy extraction failed:', error instanceof Error ? error.message : 'unknown')
+  }
+
+  console.error('[parsePdf] all extraction strategies failed — returning empty text')
+  return { text: '', pageCount: 0 }
 }
 
 // ─── OCR stub ───────────────────────────────────────────────────────────────
