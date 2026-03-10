@@ -110,7 +110,7 @@ export default function DashboardPage() {
       {/* Primary Stats */}
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-6">
-          <p className="text-sm text-muted-foreground">Total Potential Recovery</p>
+          <p className="text-sm text-muted-foreground">Total Net Recoverable from Payer</p>
           <p className="text-3xl font-semibold tracking-tight text-green-700">
             {formatCurrency(stats?.totalRecovery || 0)}
           </p>

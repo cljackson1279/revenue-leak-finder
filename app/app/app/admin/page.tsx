@@ -340,7 +340,7 @@ export default function AdminPage() {
                 <p className="text-2xl font-semibold">{findingStats.total}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Total Recovery Potential</p>
+                <p className="text-xs text-muted-foreground">Total Net Recoverable from Payer</p>
                 <p className="text-2xl font-semibold text-green-700">
                   {formatCurrency(findingStats.totalRecovery)}
                 </p>

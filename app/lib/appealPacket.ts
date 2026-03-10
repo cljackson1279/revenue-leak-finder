@@ -132,11 +132,11 @@ function getAppealLetterContent(finding: Finding, opts: AppealPacketOptions): st
         `    Patient Responsibility:       ${pr}`,
         `    Amount Paid by Payer:         ${paid}`,
         `    ─────────────────────────────────────────`,
-        `    Underpayment Amount:          ${underpayment}`,
+        `    Net Recoverable from Payer:   ${underpayment}`,
+        `    Formula: Allowed (${allowed}) − Paid (${paid}) − Patient Responsibility (${pr}) = ${underpayment}`,
         ``,
-        `CARC Code ${carcList} was applied to this claim. Per our provider agreement and the applicable fee schedule, the expected payer payment for CPT ${cpt} rendered on ${dos} is ${allowed}. After applying the patient responsibility of ${pr}, the expected net payer payment is ${fmt((finding.allowed_amount ?? 0) - (finding.patient_responsibility ?? 0))}. The actual payment received was ${paid}, resulting in an underpayment of ${underpayment}.`,
-        ``,
-        `We are requesting that you review the contracted rate for CPT ${cpt} and reprocess this claim to issue the balance of ${underpayment}. Please provide a corrected Explanation of Benefits (EOB) upon reprocessing.`,
+        `CARC Code ${carcList} was applied to this claim. Per our provider agreement and the applicable fee schedule, the expected payer payment for CPT ${cpt} rendered on ${dos} is ${allowed}. After applying the patient responsibility of ${pr}, the net amount recoverable from the payer is calculated as: Allowed (${allowed}) − Paid (${paid}) − Patient Responsibility (${pr}) = ${underpayment}. The actual payment received was ${paid}, resulting in a net recoverable amount of ${underpayment}.`,
+        `We are requesting that you review the contracted rate for CPT ${cpt} and reprocess this claim to issue the net recoverable balance of ${underpayment}. This amount represents the difference between the contractually allowed amount and the sum of the payer payment plus patient responsibility. Please provide a corrected Explanation of Benefits (EOB) upon reprocessing.`,
         ``,
         `If you believe this payment was made correctly, please provide a written explanation citing the specific contract provision or fee schedule section that supports the payment amount, along with a copy of the applicable fee schedule.`,
       ]
@@ -315,7 +315,7 @@ export function generateAppealPacketPdf(opts: AppealPacketOptions): Promise<Buff
     doc.moveDown(0.4)
     doc.fontSize(10).font('Helvetica')
     const statLines = [
-      [`Total Potential Recovery:`, fmt(totalRecovery)],
+      [`Total Net Recoverable from Payer:`, fmt(totalRecovery)],
       [`Underpaid Claims:`, `${underpaid.length}  (${fmt(underpaid.reduce((s, f) => s + (f.underpayment_amount || 0), 0))})`],
       [`Appealable Denials:`, `${appealable.length}`],
       [`Needs Review:`, `${needsReview.length}`],
@@ -335,7 +335,7 @@ export function generateAppealPacketPdf(opts: AppealPacketOptions): Promise<Buff
       .slice(0, 5)
 
     if (top5.length > 0) {
-      doc.fontSize(13).font('Helvetica-Bold').text('Top Findings by Recovery Amount')
+      doc.fontSize(13).font('Helvetica-Bold').text('Top Findings by Net Recoverable Amount')
       doc.moveDown(0.4)
       doc.fontSize(9).font('Helvetica')
       for (const f of top5) {

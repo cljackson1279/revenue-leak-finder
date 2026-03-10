@@ -261,7 +261,7 @@ function ResultsContent() {
       {/* Summary Cards */}
       <div className="mb-6 grid gap-4 sm:grid-cols-4">
         <Card className="p-6">
-          <p className="text-sm text-muted-foreground">Potential Recovery</p>
+          <p className="text-sm text-muted-foreground">Net Recoverable from Payer</p>
           <p className="text-2xl font-semibold tracking-tight text-green-700">
             {formatCurrency(totalPotentialRecovery)}
           </p>
@@ -414,7 +414,7 @@ function ResultsContent() {
                   <th className="px-4 py-3 font-medium">Type</th>
                   <th className="px-4 py-3 font-medium text-right">Billed</th>
                   <th className="px-4 py-3 font-medium text-right">Paid</th>
-                  <th className="px-4 py-3 font-medium text-right">Recovery</th>
+                  <th className="px-4 py-3 font-medium text-right">Net Recoverable</th>
                   <th className="px-4 py-3 font-medium">Conf.</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Actions</th>

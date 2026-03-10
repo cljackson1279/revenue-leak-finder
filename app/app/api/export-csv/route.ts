@@ -58,10 +58,11 @@ export async function GET(request: Request) {
     }
 
     // CSV columns per spec
+    // Formula: Net Recoverable from Payer = Allowed - Paid - Patient Responsibility
     const headers = [
       'payer', 'service_date', 'procedure_code', 'type', 'confidence',
-      'billed', 'allowed', 'paid', 'pr', 'underpayment',
-      'carc', 'rarc', 'action', 'rationale', 'status',
+      'billed', 'allowed', 'paid', 'patient_responsibility', 'net_recoverable_from_payer',
+      'formula', 'carc', 'rarc', 'action', 'rationale', 'status',
     ]
 
     const escapeCSV = (val: string | null | undefined): string => {
@@ -84,6 +85,7 @@ export async function GET(request: Request) {
       escapeCSV(f.paid_amount?.toString()),
       escapeCSV(f.patient_responsibility?.toString()),
       escapeCSV(f.underpayment_amount?.toString()),
+      escapeCSV('Net Recoverable = Allowed - Paid - Patient Responsibility'),
       escapeCSV(f.carc_codes?.join('; ')),
       escapeCSV(f.rarc_codes?.join('; ')),
       escapeCSV(f.action),

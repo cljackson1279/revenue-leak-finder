@@ -188,7 +188,7 @@ export default function FindingDetailPage() {
         <div className="flex flex-col items-end gap-2">
           {finding.underpayment_amount && finding.underpayment_amount > 0 && (
             <div className="text-right">
-              <p className="text-xs text-muted-foreground">Potential Recovery</p>
+              <p className="text-xs text-muted-foreground">Net Recoverable from Payer</p>
               <p className="text-3xl font-semibold text-red-600">
                 {formatCurrency(finding.underpayment_amount)}
               </p>
@@ -251,7 +251,7 @@ export default function FindingDetailPage() {
               <p className="text-lg font-medium">{formatCurrency(finding.patient_responsibility)}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Underpayment</p>
+              <p className="text-xs text-muted-foreground">Net Recoverable from Payer</p>
               <p className="text-lg font-semibold text-red-600">
                 {formatCurrency(finding.underpayment_amount)}
               </p>
