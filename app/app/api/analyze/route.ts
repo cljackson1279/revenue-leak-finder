@@ -208,13 +208,20 @@ export async function POST(request: Request) {
     }
 
     // ── 9. Mark complete ──
+    // Always update status first (column exists in all DB versions)
     await supabase
       .from('uploads')
-      .update({
-        status: 'complete',
-        analyzed_at: new Date().toISOString(),
-      })
+      .update({ status: 'complete' })
       .eq('id', upload_id)
+
+    // analyzed_at is a post-migration column — attempt separately so failure doesn't block
+    await supabase
+      .from('uploads')
+      .update({ analyzed_at: new Date().toISOString() })
+      .eq('id', upload_id)
+      .then(({ error }) => {
+        if (error) console.warn('[analyze] analyzed_at update skipped (column may not exist yet):', error.message)
+      })
 
     console.log('[analyze] complete', {
       upload_id,

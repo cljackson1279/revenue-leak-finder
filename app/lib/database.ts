@@ -84,16 +84,24 @@ export async function createUpload(
     contentHash?: string
   }
 ): Promise<Upload | null> {
+  // Build insert payload — only include columns that exist in all DB versions.
+  // content_hash is optional and only inserted if the column exists (post-migration).
+  const insertPayload: Record<string, unknown> = {
+    account_id: params.accountId,
+    filename: params.filename,
+    storage_path: params.storagePath,
+    source_type: params.sourceType,
+    status: 'uploaded',
+  }
+  // content_hash is a post-migration column; include only when provided
+  // (Supabase will ignore unknown columns gracefully after migration)
+  if (params.contentHash) {
+    insertPayload.content_hash = params.contentHash
+  }
+
   const { data, error } = await client
     .from('uploads')
-    .insert({
-      account_id: params.accountId,
-      filename: params.filename,
-      storage_path: params.storagePath,
-      source_type: params.sourceType,
-      content_hash: params.contentHash || null,
-      status: 'uploaded',
-    })
+    .insert(insertPayload)
     .select()
     .single()
 
