@@ -40,48 +40,60 @@ export default function LoginPage() {
 
     try {
       if (mode === 'signup') {
-        // ── Create new account ──────────────────────────────────────────────
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            // Skip email confirmation so the user can log in immediately
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
-          },
+        // ── Server-side sign-up (auto-confirms, no email required) ────────
+        const res = await fetch('/api/auth/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
         })
 
-        if (error) throw error
+        const result = await res.json()
 
-        if (data.session) {
-          // Email confirmation is disabled — user is immediately signed in
-          await ensureAccount(data.session.user.id, email)
-          router.replace('/app/dashboard')
-        } else {
-          // Email confirmation is enabled — tell the user to check their inbox
-          setMessage({
-            type: 'success',
-            text: 'Account created! Check your email to confirm your address, then sign in.',
-          })
-          setMode('signin')
+        if (!res.ok) {
+          // If the account already exists, switch to sign-in mode
+          if (res.status === 409) {
+            setMode('signin')
+            setMessage({
+              type: 'error',
+              text: 'An account with this email already exists. Please sign in below.',
+            })
+            setLoading(false)
+            return
+          }
+          throw new Error(result.error || 'Failed to create account')
         }
-      } else {
-        // ── Sign in with existing credentials ──────────────────────────────
-        const { data, error } = await supabase.auth.signInWithPassword({
+
+        // Account created and confirmed — now sign in to get a session
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
         })
+
+        if (signInError) throw signInError
+        if (signInData.session) {
+          router.replace('/app/dashboard')
+          return
+        }
+
+      } else {
+        // ── Standard sign-in ───────────────────────────────────────────────
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
         if (error) {
-          if (error.message.toLowerCase().includes('invalid login credentials') ||
-              error.message.toLowerCase().includes('invalid credentials')) {
-            throw new Error('Incorrect email or password. If you don\'t have an account yet, click "Create account" below.')
+          if (
+            error.message.toLowerCase().includes('invalid login credentials') ||
+            error.message.toLowerCase().includes('invalid credentials')
+          ) {
+            throw new Error(
+              "Incorrect email or password. If you don't have an account yet, click \"Create account\" below."
+            )
           }
           throw error
         }
 
         if (data.session) {
-          await ensureAccount(data.session.user.id, email)
           router.replace('/app/dashboard')
+          return
         }
       }
     } catch (error) {
@@ -91,45 +103,6 @@ export default function LoginPage() {
       })
     } finally {
       setLoading(false)
-    }
-  }
-
-  /**
-   * Ensure the user has an account row and account_users membership.
-   * Safe to call on every login — does nothing if already set up.
-   */
-  const ensureAccount = async (userId: string, userEmail: string) => {
-    try {
-      const { data: existing } = await supabase
-        .from('account_users')
-        .select('account_id')
-        .eq('user_id', userId)
-        .limit(1)
-        .maybeSingle()
-
-      if (!existing) {
-        // First login — create account
-        const emailDomain = userEmail?.split('@')[1] || 'practice'
-        const practiceName = emailDomain
-          .replace(/\.(com|net|org|io|health|care|clinic|med)$/, '')
-          .replace(/[^a-zA-Z0-9]/g, ' ')
-          .replace(/\b\w/g, (c: string) => c.toUpperCase())
-          .trim() || 'My Practice'
-
-        const { data: newAccount } = await supabase
-          .from('accounts')
-          .insert({ name: practiceName })
-          .select('id')
-          .single()
-
-        if (newAccount) {
-          await supabase
-            .from('account_users')
-            .insert({ account_id: newAccount.id, user_id: userId, role: 'admin' })
-        }
-      }
-    } catch {
-      // Non-fatal — user can still access the app, account will be created on next request
     }
   }
 
