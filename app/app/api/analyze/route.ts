@@ -157,6 +157,17 @@ export async function POST(request: Request) {
     }
 
     if (findings.length > 0) {
+      // Defensive: normalize confidence to exact allowed values before insert.
+      // Guards against any unexpected casing or legacy values from any code path.
+      const normalizeConfidence = (c: string): 'High' | 'Medium' | 'Low' => {
+        const lower = (c || '').toLowerCase().trim()
+        if (lower === 'high') return 'High'
+        if (lower === 'medium' || lower === 'med') return 'Medium'
+        if (lower === 'low') return 'Low'
+        console.warn('[analyze] unexpected confidence value, defaulting to Low:', c)
+        return 'Low'
+      }
+
       const rows = findings.map(f => ({
         account_id: accountId,
         upload_id: upload_id,
@@ -171,7 +182,7 @@ export async function POST(request: Request) {
         carc_codes: f.carc_codes,
         rarc_codes: f.rarc_codes,
         finding_type: f.finding_type,
-        confidence: f.confidence,
+        confidence: normalizeConfidence(f.confidence),
         action: f.action,
         rationale: f.rationale,
         evidence: f.evidence,
