@@ -216,6 +216,44 @@ export function extractHeader(text: string): PdfHeader {
 
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0)
 
+  /**
+   * Helper: given a label line index, return the value.
+   * Handles two formats:
+   *   A) "Label: Value"  — value is on the same line after the colon/dash
+   *   B) "Label"         — value is on the very next non-empty line
+   * Returns null if the next line looks like another label or a data row.
+   */
+  function getFieldValue(lineIdx: number, labelRegex: RegExp): string | null {
+    const line = lines[lineIdx]
+    const m = line.match(labelRegex)
+    if (!m) return null
+
+    // Case A: value is on the same line
+    if (m[1] && m[1].trim().length > 0) {
+      const val = m[1].trim()
+      // If it looks like another label, fall through to Case B
+      if (!/^(?:Claim|Reference|Date|ID|#|Number|Patient|Provider|Payer|Insurance|Plan|Carrier|Remit|TIN|NPI)\b/i.test(val) && !val.endsWith(':')) {
+        return val
+      }
+    }
+
+    // Case B: value is on the next line
+    for (let j = lineIdx + 1; j < Math.min(lineIdx + 3, lines.length); j++) {
+      const nextLine = lines[j].trim()
+      if (!nextLine) continue
+      // Skip if next line is itself a label (single word ending in colon, or known label)
+      if (/^(?:Provider|Payer|Patient|Claim|Date|Remit|TIN|NPI|Insurance|Plan|Carrier|Account|Member|Group)\s*(?:Number|Name|#|No\.?|Date)?\s*:?$/i.test(nextLine)) continue
+      // Skip column header rows and dollar-amount data rows
+      if (isColumnHeaderLine(nextLine)) continue
+      if (/\$\s*\d/.test(nextLine)) continue
+      return nextLine
+    }
+    return null
+  }
+
+  // Track which lines have been used for DOS so we don't double-extract
+  let dosLineIdx = -1
+
   for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
     const line = lines[lineIdx]
     // Skip column header lines and data rows with dollar amounts
@@ -223,71 +261,96 @@ export function extractHeader(text: string): PdfHeader {
     if (/\$\s*\d/.test(line)) continue
 
     // ── Payer ──
-    // Must start with "Payer" (possibly with colon/dash) at beginning of line
     if (!header.payer) {
-      const m = line.match(/^Payer\s*[:\-]?\s*(.+)/i)
-      if (m && m[1]) {
-        let payerValue = m[1].trim()
-        // If the captured value looks like another label (e.g., "Claim Reference:"),
-        // the actual payer name is likely on the next line
-        if (/^(?:Claim|Reference|Date|ID|#|Number)/i.test(payerValue) || payerValue.endsWith(':')) {
-          // Look at the next non-empty line for the actual payer name
-          if (lineIdx + 1 < lines.length) {
-            const nextLine = lines[lineIdx + 1].trim()
-            // Extract the payer name from the next line (before any claim/reference numbers)
-            const payerFromNext = nextLine.match(/^([A-Za-z][A-Za-z\s]+?)(?:\s+(?:CLM|ICN|Claim|P\.O\.|PO|\d{2}-\d{7}))/i)
-            if (payerFromNext) {
-              header.payer = payerFromNext[1].trim()
-            } else if (/^[A-Za-z]/.test(nextLine) && !isColumnHeaderLine(nextLine)) {
-              // Take the whole next line if it starts with a letter
-              header.payer = nextLine
-            }
+      // Handles all formats:
+      //   "Payer AETNA COMMERCIAL"   (no colon, value on same line)
+      //   "Payer: AETNA COMMERCIAL"  (colon, value on same line)
+      //   "Payer"                    (label alone, value on next line)
+      if (/^(?:Payer|Insurance\s*(?:Company|Name|Plan)?|Plan\s*Name|Carrier)\b/i.test(line)) {
+        let val = getFieldValue(lineIdx, /^(?:Payer|Insurance\s*(?:Company|Name|Plan)?|Plan\s*Name|Carrier)\s*[:\-]?\s*(.*)/i)
+        if (val && val.length > 1) {
+          // Strip trailing claim numbers, NPI, address suffixes that may appear on the same line
+          // e.g. "BlueCross BlueShield of Texas CLM-2026-00001" → "BlueCross BlueShield of Texas"
+          val = val
+            .replace(/\s+(?:CLM|CLAIM|REF|REFERENCE|CONTROL|ICN|DCN)[\-:\s]\S+.*/i, '')  // trailing claim ref
+            .replace(/\s+NPI[:\s]\d{10}.*/i, '')                                           // trailing NPI
+            .replace(/\s+(?:P\.?O\.?\s*Box|\d{1,5}\s+\w+\s+(?:St|Ave|Blvd|Dr|Rd|Ln|Way)).*/i, '') // trailing address
+            .replace(/\s+\d{5}(?:-\d{4})?\s*$/, '')                                        // trailing ZIP code
+            .trim()
+          if (val.length > 1) {
+            header.payer = val
+            continue
           }
-        } else if (payerValue.length > 1) {
-          header.payer = payerValue
         }
-        continue
-      }
-      // Also match "Insurance Company: ..." or "Plan Name: ..."
-      const m2 = line.match(/^(?:Insurance\s*(?:Company|Name|Plan)|Plan\s*Name|Carrier)\s*[:\-]?\s*(.+)/i)
-      if (m2 && m2[1] && m2[1].trim().length > 1) {
-        header.payer = m2[1].trim()
-        continue
       }
     }
 
     // ── Provider ──
     if (!header.provider) {
-      const m = line.match(/^(?:Provider|Rendering\s*Provider|Payee)\s*(?:Name)?\s*[:\-]?\s*(.+)/i)
-      if (m && m[1] && m[1].trim().length > 1) {
-        header.provider = m[1].trim()
-        continue
+      // Handles all formats:
+      //   "Provider Riverview Associates"  (no colon)
+      //   "Provider: Riverview Associates" (colon)
+      //   "Provider"                       (label alone, value on next line)
+      if (/^(?:Provider|Rendering\s*Provider|Payee)\b/i.test(line)) {
+        const val = getFieldValue(lineIdx, /^(?:Provider|Rendering\s*Provider|Payee)\s*(?:Name)?\s*[:\-]?\s*(.*)/i)
+        if (val && val.length > 1) {
+          header.provider = val
+          continue
+        }
       }
     }
 
     // ── Claim Number ──
     if (!header.claimNumber) {
-      // Line-start match
-      const m = line.match(/^(?:Claim\s*(?:Number|#|No\.?)|ICN)\s*[:\-]?\s*([\w\-]+)/i)
-      if (m && m[1] && m[1].trim().length > 1) {
-        header.claimNumber = m[1].trim()
-        continue
+      // Label-then-value (same line or next line)
+      if (/^(?:Claim\s*(?:Number|#|No\.?)|ICN)\s*[:\-]?/i.test(line)) {
+        const val = getFieldValue(lineIdx, /^(?:Claim\s*(?:Number|#|No\.?)|ICN)\s*[:\-]?\s*(.*)/i)
+        if (val && val.trim().length > 1) {
+          header.claimNumber = val.trim()
+          continue
+        }
       }
-      // Inline CLM-XXXXX pattern anywhere in the line
-      if (!header.claimNumber) {
-        const clmMatch = line.match(/\b(CLM-[\w\-]+)/i)
-        if (clmMatch) {
-          header.claimNumber = clmMatch[1].trim()
+      // Inline CLM-XXXXX or UHC-XXXXX pattern anywhere in the line
+      const clmMatch = line.match(/\b((?:CLM|UHC|ICN|CLM|REF)-[\w\-]+)/i)
+      if (clmMatch) {
+        header.claimNumber = clmMatch[1].trim()
+      }
+    }
+
+    // ── Date of Service (capture into remitDate if not already set — used as service_date fallback) ──
+    if (!header.remitDate && dosLineIdx === -1) {
+      if (/^(?:Date\s*of\s*Service|DOS|Service\s*Date)\s*[:\-]?\s*$/i.test(line) ||
+          /^(?:Date\s*of\s*Service|DOS|Service\s*Date)\s*[:\-]\s*.+/i.test(line)) {
+        const val = getFieldValue(lineIdx, /^(?:Date\s*of\s*Service|DOS|Service\s*Date)\s*[:\-]?\s*(.*)/i)
+        if (val) {
+          const dateMatch = val.match(/\b(\d{4}-\d{2}-\d{2}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\b/)
+          if (dateMatch) {
+            header.remitDate = parseDateToISO(dateMatch[1])
+            dosLineIdx = lineIdx
+            continue
+          }
         }
       }
     }
 
     // ── Remit Date ──
     if (!header.remitDate) {
-      const m = line.match(/^(?:Remit\s*(?:Date|Dt)?|Payment\s*Date|Check\s*Date|Date)\s*[:\-]?\s*(\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i)
+      // Same-line format: "Remit Date: 2026-02-28"
+      const m = line.match(/^(?:Remit\s*(?:Date|Dt)?|Payment\s*Date|Check\s*Date)\s*[:\-]?\s*(\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i)
       if (m && m[1]) {
         header.remitDate = parseDateToISO(m[1])
         continue
+      }
+      // Label-only line: "Remit Date" then date on next line
+      if (/^(?:Remit\s*(?:Date|Dt)?|Payment\s*Date|Check\s*Date)\s*[:\-]?\s*$/i.test(line)) {
+        const val = getFieldValue(lineIdx, /^(?:Remit\s*(?:Date|Dt)?|Payment\s*Date|Check\s*Date)\s*[:\-]?\s*(.*)/i)
+        if (val) {
+          const dateMatch = val.match(/\b(\d{4}-\d{2}-\d{2}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\b/)
+          if (dateMatch) {
+            header.remitDate = parseDateToISO(dateMatch[1])
+            continue
+          }
+        }
       }
     }
 
@@ -385,6 +448,7 @@ function parseAmountFieldOrder(headerLine: string): string[] {
     { regex: /\ballowable\b/i, type: 'allowed' },
     // Patient Responsibility (must come before Paid to avoid "Paid by Plan" matching paid first)
     { regex: /patient\s*resp(?:onsibility)?\.?/i, type: 'pr' },
+    { regex: /\bpt\.?\s*resp(?:onsibility)?\.?/i, type: 'pr' },  // "Pt Resp." abbreviation
     { regex: /member\s*resp(?:onsibility)?\.?/i, type: 'pr' },
     { regex: /your\s*resp(?:onsibility)?/i, type: 'pr' },
     { regex: /you\s*owe/i, type: 'pr' },
