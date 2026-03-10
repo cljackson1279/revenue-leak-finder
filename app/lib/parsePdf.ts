@@ -320,13 +320,13 @@ function isTableHeaderRow(line: string): boolean {
   if (/\d{1,3}(?:,\d{3})*\.\d{2}/.test(line)) return false
 
   const keywords = [
-    'billed', 'charge', 'submitted',
-    'allowed', 'eligible', 'approved',
-    'paid', 'payment', 'net',
-    'patient', 'resp', 'copay', 'deduct', 'coinsur',
-    'cpt', 'hcpcs', 'procedure',
+    'billed', 'charge', 'submitted', 'provider charges',
+    'allowed', 'eligible', 'approved', 'allowable', 'fee schedule', 'contracted',
+    'paid', 'payment', 'net', 'benefit', 'plan paid', 'prov pd',
+    'patient', 'resp', 'copay', 'deduct', 'coinsur', 'you owe', 'your share', 'member resp',
+    'cpt', 'hcpcs', 'procedure', 'proc', 'service',
     'units', 'dos', 'date',
-    'adjustment', 'remark',
+    'adjustment', 'remark', 'adj',
   ]
   const matchCount = keywords.filter(kw => lower.includes(kw)).length
   return matchCount >= 3
@@ -343,16 +343,34 @@ function parseAmountFieldOrder(headerLine: string): string[] {
   const fieldPositions: { type: string; pos: number }[] = []
   
   const patterns: { regex: RegExp; type: string }[] = [
+    // Billed / Charged / Submitted
     { regex: /\bbilled\b/i, type: 'billed' },
     { regex: /\bcharge[ds]?\b/i, type: 'billed' },
     { regex: /\bsubmitted\b/i, type: 'billed' },
+    { regex: /\bamount\s*billed\b/i, type: 'billed' },
+    { regex: /\bprovider\s*charges\b/i, type: 'billed' },
+    // Allowed / Eligible / Approved / Fee Schedule / Contracted
     { regex: /\ballowed\b/i, type: 'allowed' },
     { regex: /\beligible\b/i, type: 'allowed' },
     { regex: /\bapproved\b/i, type: 'allowed' },
-    { regex: /patient\s*resp\.?/i, type: 'pr' },
+    { regex: /\bfee\s*schedule\b/i, type: 'allowed' },
+    { regex: /\bcontracted\b/i, type: 'allowed' },
+    { regex: /\ballowable\b/i, type: 'allowed' },
+    // Patient Responsibility (must come before Paid to avoid "Paid by Plan" matching paid first)
+    { regex: /patient\s*resp(?:onsibility)?\.?/i, type: 'pr' },
+    { regex: /member\s*resp(?:onsibility)?\.?/i, type: 'pr' },
+    { regex: /your\s*resp(?:onsibility)?/i, type: 'pr' },
+    { regex: /you\s*owe/i, type: 'pr' },
+    { regex: /your\s*share/i, type: 'pr' },
     { regex: /\bcopay\b/i, type: 'pr' },
     { regex: /\bdeduct(?:ible)?\b/i, type: 'pr' },
     { regex: /\bcoinsur(?:ance)?\b/i, type: 'pr' },
+    // Paid / Payment / Plan Paid / Benefit / Provider Paid
+    { regex: /\bpaid\s*by\s*plan\b/i, type: 'paid' },
+    { regex: /\bplan\s*paid\b/i, type: 'paid' },
+    { regex: /\binsurance\s*paid\b/i, type: 'paid' },
+    { regex: /\bprov(?:ider)?\s*p(?:ai)?d\b/i, type: 'paid' },
+    { regex: /\bbenefit\b/i, type: 'paid' },
     { regex: /\bpaid\b/i, type: 'paid' },
     { regex: /\bpayment\b/i, type: 'paid' },
     { regex: /\bnet\b/i, type: 'paid' },
@@ -417,9 +435,14 @@ function extractTableRows(text: string): PdfLineItem[] {
     // Skip if this looks like another header row or a section title
     if (isTableHeaderRow(line)) continue
 
-    // Skip summary/total lines
+    // Skip summary/total lines — comprehensive patterns
     if (/^total\b/i.test(line)) continue
-    if (/\btotal\s+(billed|allowed|paid|patient)/i.test(line)) continue
+    if (/^subtotal\b/i.test(line)) continue
+    if (/^grand\s*total\b/i.test(line)) continue
+    if (/\btotal\s+(billed|allowed|paid|patient|charge|amount)/i.test(line)) continue
+    if (/\b(check|net\s*payment|net\s*paid|amount\s*paid)\s*[:$]/i.test(line)) continue
+    if (/^(summary|remark|note|internal|adjustment\s*summary)/i.test(line)) continue
+    if (/^(check|payment|remittance)\s*(amount|total|number|#|no)/i.test(line)) continue
 
     // A data row must contain dollar amounts
     const amountRegex = /\$?\s*(\d{1,3}(?:,\d{3})*\.\d{2})\b/g
@@ -434,28 +457,47 @@ function extractTableRows(text: string): PdfLineItem[] {
 
     if (amountValues.length === 0) continue
 
-    // ── Extract CPT code ──
-    // Find 5-digit CPT codes that are NOT part of account numbers or dates
+    // ── Extract procedure code (CPT, HCPCS, or CPT with modifier) ──
     let procedureCode: string | null = null
-    const allFiveDigit = [...line.matchAll(/\b(\d{5})\b/g)]
-    for (const match of allFiveDigit) {
-      const code = match[1]
-      const pos = match.index!
-      // Skip if preceded by ACCT-, PAT-, CLM-, or similar account prefixes
-      const before = line.substring(Math.max(0, pos - 10), pos)
-      if (/(?:ACCT|PAT|CLM|ID|#)[\-:\s]*$/i.test(before)) continue
-      // Skip if it looks like part of a date (e.g., 20260)
-      if (/\d{4}-\d{2}-\d{2}/.test(line.substring(Math.max(0, pos - 5), pos + 10))) continue
-      // If header has both account and CPT columns, and this is the first 5-digit
-      // number that's part of an account pattern like ACCT-XXXXX, skip it
-      if (hasAccountColumn && hasCptColumn) {
-        // Check if this 5-digit number is embedded in an account-like token
-        const tokenBefore = line.substring(Math.max(0, pos - 15), pos)
-        if (/[A-Z]{2,}[\-:]/i.test(tokenBefore)) continue
-      }
 
-      procedureCode = code
-      break
+    // Strategy 1: HCPCS codes (letter + 4 digits, e.g., J9271, G0463)
+    const hcpcsMatch = line.match(/\b([A-Z]\d{4})\b/)
+    if (hcpcsMatch) {
+      procedureCode = hcpcsMatch[1]
+    }
+
+    // Strategy 2: CPT codes with modifiers (e.g., 99214-25 → extract 99214)
+    if (!procedureCode) {
+      const cptModMatch = line.match(/\b(\d{5})-\d{1,2}\b/)
+      if (cptModMatch) {
+        const code = cptModMatch[1]
+        const pos = cptModMatch.index!
+        const before = line.substring(Math.max(0, pos - 10), pos)
+        if (!/(?:ACCT|PAT|CLM|ID|#)[\-:\s]*$/i.test(before)) {
+          procedureCode = code
+        }
+      }
+    }
+
+    // Strategy 3: Plain 5-digit CPT codes
+    if (!procedureCode) {
+      const allFiveDigit = [...line.matchAll(/\b(\d{5})\b/g)]
+      for (const match of allFiveDigit) {
+        const code = match[1]
+        const pos = match.index!
+        // Skip if preceded by ACCT-, PAT-, CLM-, or similar account prefixes
+        const before = line.substring(Math.max(0, pos - 10), pos)
+        if (/(?:ACCT|PAT|CLM|ID|#)[\-:\s]*$/i.test(before)) continue
+        // Skip if it looks like part of a date (e.g., 20260)
+        if (/\d{4}-\d{2}-\d{2}/.test(line.substring(Math.max(0, pos - 5), pos + 10))) continue
+        // If header has both account and CPT columns, skip account-embedded numbers
+        if (hasAccountColumn && hasCptColumn) {
+          const tokenBefore = line.substring(Math.max(0, pos - 15), pos)
+          if (/[A-Z]{2,}[\-:]/i.test(tokenBefore)) continue
+        }
+        procedureCode = code
+        break
+      }
     }
 
     if (!procedureCode) continue
@@ -506,14 +548,70 @@ function extractTableRows(text: string): PdfLineItem[] {
       }
     }
 
-    // Determine confidence based on how many fields we extracted
+    // ── Cross-validation sanity checks ──
+    // These checks prevent false positives from column misalignment.
+    // If amounts fail sanity checks, downgrade confidence rather than
+    // reporting wrong numbers.
+    let sanityOk = true
+
+    if (billed !== null && allowed !== null) {
+      // Allowed should typically be <= Billed (payer contracts don't pay more than billed)
+      // Exception: some payers show allowed > billed for bundled services, so we only
+      // flag when allowed is dramatically higher (> 2x billed)
+      if (allowed > billed * 2) {
+        sanityOk = false
+      }
+    }
+
+    if (allowed !== null && paid !== null) {
+      // Paid should typically be <= Allowed
+      if (paid > allowed * 1.01) { // 1% tolerance for rounding
+        sanityOk = false
+      }
+    }
+
+    if (billed !== null && paid !== null) {
+      // Paid should never exceed Billed
+      if (paid > billed * 1.01) {
+        sanityOk = false
+      }
+    }
+
+    if (patientResp !== null && allowed !== null) {
+      // Patient responsibility should not exceed allowed amount
+      if (patientResp > allowed * 1.01) {
+        sanityOk = false
+      }
+    }
+
+    if (paid !== null && patientResp !== null && allowed !== null) {
+      // Paid + Patient Resp should approximately equal Allowed
+      // (with some tolerance for adjustment amounts)
+      const totalAccountedFor = paid + patientResp
+      if (totalAccountedFor > allowed * 1.5) {
+        sanityOk = false
+      }
+    }
+
+    // Determine confidence based on how many fields we extracted AND sanity checks
     let matchConfidence: 'High' | 'Medium' | 'Low' = 'Low'
     if (billed !== null && allowed !== null && paid !== null && patientResp !== null) {
-      matchConfidence = 'High'
+      matchConfidence = sanityOk ? 'High' : 'Low'
     } else if (billed !== null && allowed !== null && paid !== null) {
-      matchConfidence = 'Medium'
+      matchConfidence = sanityOk ? 'Medium' : 'Low'
     } else if (billed !== null && paid !== null) {
-      matchConfidence = 'Medium'
+      matchConfidence = sanityOk ? 'Medium' : 'Low'
+    }
+
+    // If sanity checks failed, clear the amounts that are likely misaligned
+    // This prevents false underpayment calculations
+    if (!sanityOk) {
+      // Keep billed (usually reliable as the first amount) but clear others
+      // so the finding becomes NEEDS_REVIEW instead of a false UNDERPAID
+      allowed = null
+      paid = null
+      patientResp = null
+      matchConfidence = 'Low'
     }
 
     items.push({
