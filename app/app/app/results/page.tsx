@@ -27,6 +27,10 @@ type Finding = {
   created_at: string
 }
 
+// Status groups
+const OPEN_STATUSES = ['open']
+const CLOSED_STATUSES = ['resolved', 'ignored', 'closed']
+
 function ResultsContent() {
   const supabase = getSupabase()
   const searchParams = useSearchParams()
@@ -39,11 +43,13 @@ function ResultsContent() {
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [generatingId, setGeneratingId] = useState<string | null>(null)
 
-  // Filters
+  // Tab: 'open' | 'closed'
+  const [activeTab, setActiveTab] = useState<'open' | 'closed'>('open')
+
+  // Filters (applied within the active tab)
   const [filterType, setFilterType] = useState<string>('')
   const [filterConfidence, setFilterConfidence] = useState<string>('')
   const [filterPayer, setFilterPayer] = useState<string>('')
-  const [filterStatus, setFilterStatus] = useState<string>('')
 
   const loadFindings = useCallback(async () => {
     try {
@@ -68,9 +74,8 @@ function ResultsContent() {
       if (filterType) query = query.eq('finding_type', filterType)
       if (filterConfidence) query = query.eq('confidence', filterConfidence)
       if (filterPayer) query = query.eq('payer', filterPayer)
-      if (filterStatus) query = query.eq('status', filterStatus)
 
-      query = query.limit(200)
+      query = query.limit(500)
 
       const { data, error: fetchError } = await query
 
@@ -84,7 +89,7 @@ function ResultsContent() {
     } finally {
       setLoading(false)
     }
-  }, [uploadId, filterType, filterConfidence, filterPayer, filterStatus])
+  }, [uploadId, filterType, filterConfidence, filterPayer])
 
   useEffect(() => {
     loadFindings()
@@ -125,21 +130,17 @@ function ResultsContent() {
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `appeal-${finding.procedure_code || finding.id}.pdf`
+        a.download = `appeal-${finding.procedure_code || finding.id}-${new Date().toISOString().split('T')[0]}.pdf`
         a.click()
         URL.revokeObjectURL(url)
+      } else {
+        const err = await res.json().catch(() => ({}))
+        alert(`Failed to generate letter: ${err.error || res.statusText}`)
       }
     } finally {
       setGeneratingId(null)
     }
   }
-
-  const totalRecovery = findings
-    .filter(f => f.underpayment_amount && f.underpayment_amount > 0)
-    .reduce((s, f) => s + (f.underpayment_amount || 0), 0)
-
-  const formatCurrency = (amount: number | null) =>
-    amount != null ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount) : '—'
 
   const handleExportCSV = async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -150,7 +151,6 @@ function ResultsContent() {
     if (filterType) params.set('finding_type', filterType)
     if (filterConfidence) params.set('confidence', filterConfidence)
     if (filterPayer) params.set('payer', filterPayer)
-    if (filterStatus) params.set('status', filterStatus)
 
     const res = await fetch(`/api/export-csv?${params.toString()}`, {
       headers: { Authorization: `Bearer ${session.access_token}` },
@@ -191,8 +191,30 @@ function ResultsContent() {
       a.download = `appeal-packet-${new Date().toISOString().split('T')[0]}.pdf`
       a.click()
       URL.revokeObjectURL(url)
+    } else {
+      const err = await res.json().catch(() => ({}))
+      alert(`Failed to generate packet: ${err.error || res.statusText}`)
     }
   }
+
+  // Split findings into open vs closed
+  const openFindings = findings.filter(f => OPEN_STATUSES.includes(f.status))
+  const closedFindings = findings.filter(f => CLOSED_STATUSES.includes(f.status))
+  const displayFindings = activeTab === 'open' ? openFindings : closedFindings
+
+  // Totals — only count open findings for "potential recovery"
+  const totalPotentialRecovery = openFindings
+    .filter(f => (f.underpayment_amount ?? 0) > 0)
+    .reduce((s, f) => s + (f.underpayment_amount || 0), 0)
+
+  // Total recovered = sum of underpayment_amount on resolved/closed findings
+  const totalRecovered = closedFindings
+    .filter(f => f.status === 'resolved' || f.status === 'closed')
+    .filter(f => (f.underpayment_amount ?? 0) > 0)
+    .reduce((s, f) => s + (f.underpayment_amount || 0), 0)
+
+  const formatCurrency = (amount: number | null) =>
+    amount != null ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount) : '—'
 
   const uniquePayers = [...new Set(findings.map(f => f.payer).filter(Boolean))]
 
@@ -207,11 +229,18 @@ function ResultsContent() {
     }
   }
 
+  const statusBadgeVariant = (status: string) => {
+    if (status === 'open') return 'outline'
+    if (status === 'resolved' || status === 'closed') return 'default'
+    return 'secondary'
+  }
+
   const isAppealable = (type: string) =>
     type === 'UNDERPAID' || type === 'DENIED_APPEALABLE'
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+      {/* Header */}
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Results</h1>
@@ -223,34 +252,74 @@ function ResultsContent() {
           <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={findings.length === 0}>
             Export CSV
           </Button>
-          <Button variant="outline" size="sm" onClick={handleExportPDF} disabled={findings.length === 0}>
+          <Button variant="outline" size="sm" onClick={handleExportPDF} disabled={openFindings.length === 0}>
             Appeal Packet PDF
           </Button>
         </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+      <div className="mb-6 grid gap-4 sm:grid-cols-4">
         <Card className="p-6">
-          <p className="text-sm text-muted-foreground">Total Potential Recovery</p>
-          <p className="text-3xl font-semibold tracking-tight text-green-700">
-            {formatCurrency(totalRecovery)}
+          <p className="text-sm text-muted-foreground">Potential Recovery</p>
+          <p className="text-2xl font-semibold tracking-tight text-green-700">
+            {formatCurrency(totalPotentialRecovery)}
           </p>
+          <p className="mt-1 text-xs text-muted-foreground">{openFindings.length} open findings</p>
         </Card>
         <Card className="p-6">
-          <p className="text-sm text-muted-foreground">Findings</p>
-          <p className="text-3xl font-semibold tracking-tight">{findings.length}</p>
+          <p className="text-sm text-muted-foreground">Total Recovered</p>
+          <p className="text-2xl font-semibold tracking-tight text-blue-700">
+            {formatCurrency(totalRecovered)}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">{closedFindings.filter(f => f.status === 'resolved' || f.status === 'closed').length} resolved</p>
+        </Card>
+        <Card className="p-6">
+          <p className="text-sm text-muted-foreground">Open Findings</p>
+          <p className="text-2xl font-semibold tracking-tight">{openFindings.length}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {findings.filter(f => f.status === 'open').length} open
+            {openFindings.filter(f => isAppealable(f.finding_type)).length} appealable
           </p>
         </Card>
         <Card className="p-6">
           <p className="text-sm text-muted-foreground">Payers</p>
-          <p className="text-3xl font-semibold tracking-tight">{uniquePayers.length}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {findings.filter(f => isAppealable(f.finding_type)).length} appealable
-          </p>
+          <p className="text-2xl font-semibold tracking-tight">{uniquePayers.length}</p>
+          <p className="mt-1 text-xs text-muted-foreground">across all findings</p>
         </Card>
+      </div>
+
+      {/* Tabs: Open / Closed */}
+      <div className="mb-4 flex border-b">
+        <button
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'open'
+              ? 'border-zinc-900 text-zinc-900'
+              : 'border-transparent text-muted-foreground hover:text-zinc-700'
+          }`}
+          onClick={() => setActiveTab('open')}
+        >
+          Open
+          {openFindings.length > 0 && (
+            <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700">
+              {openFindings.length}
+            </span>
+          )}
+        </button>
+        <button
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'closed'
+              ? 'border-zinc-900 text-zinc-900'
+              : 'border-transparent text-muted-foreground hover:text-zinc-700'
+          }`}
+          onClick={() => setActiveTab('closed')}
+        >
+          Closed / Completed
+          {closedFindings.length > 0 && (
+            <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700">
+              {closedFindings.length}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Filters */}
@@ -297,19 +366,18 @@ function ResultsContent() {
               ))}
             </select>
           </div>
-          <div>
-            <label className="mb-1 block text-xs text-muted-foreground">Status</label>
-            <select
-              className="rounded border px-2 py-1 text-sm"
-              value={filterStatus}
-              onChange={e => setFilterStatus(e.target.value)}
-            >
-              <option value="">All</option>
-              <option value="open">Open</option>
-              <option value="resolved">Resolved</option>
-              <option value="ignored">Ignored</option>
-            </select>
-          </div>
+          {(filterType || filterConfidence || filterPayer) && (
+            <div className="flex items-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-muted-foreground"
+                onClick={() => { setFilterType(''); setFilterConfidence(''); setFilterPayer('') }}
+              >
+                Clear filters
+              </Button>
+            </div>
+          )}
         </div>
       </Card>
 
@@ -321,18 +389,20 @@ function ResultsContent() {
       )}
 
       {/* Empty State */}
-      {!loading && findings.length === 0 && !error && (
+      {!loading && displayFindings.length === 0 && !error && (
         <Card className="p-8 text-center">
           <p className="text-muted-foreground">
-            {uploadId
-              ? 'No findings for this upload. Try running analysis again.'
-              : 'No findings yet. Upload and analyze files to see results.'}
+            {activeTab === 'open'
+              ? (uploadId
+                  ? 'No open findings for this upload.'
+                  : 'No open findings. Upload and analyze files to see results.')
+              : 'No closed findings yet. Resolve or close open findings to move them here.'}
           </p>
         </Card>
       )}
 
       {/* Findings Table */}
-      {!loading && findings.length > 0 && (
+      {!loading && displayFindings.length > 0 && (
         <Card>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -351,7 +421,7 @@ function ResultsContent() {
                 </tr>
               </thead>
               <tbody>
-                {findings.map(f => (
+                {displayFindings.map(f => (
                   <tr
                     key={f.id}
                     className="cursor-pointer border-b last:border-0 hover:bg-zinc-50"
@@ -374,7 +444,7 @@ function ResultsContent() {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-xs ${
-                        f.confidence === 'High' ? 'text-green-700' :
+                        f.confidence === 'High' ? 'text-green-700 font-medium' :
                         f.confidence === 'Medium' ? 'text-yellow-700' :
                         'text-gray-500'
                       }`}>
@@ -382,11 +452,7 @@ function ResultsContent() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <Badge variant={
-                        f.status === 'open' ? 'outline' :
-                        f.status === 'resolved' ? 'default' :
-                        'secondary'
-                      }>
+                      <Badge variant={statusBadgeVariant(f.status)}>
                         {f.status}
                       </Badge>
                     </td>
@@ -395,49 +461,74 @@ function ResultsContent() {
                         className="flex items-center gap-1"
                         onClick={e => e.stopPropagation()}
                       >
-                        {isAppealable(f.finding_type) && f.status === 'open' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 px-2 text-xs"
-                            disabled={generatingId === f.id}
-                            onClick={e => handleGenerateLetter(f, e)}
-                          >
-                            {generatingId === f.id ? '...' : 'Letter'}
-                          </Button>
+                        {/* Open tab actions */}
+                        {activeTab === 'open' && (
+                          <>
+                            {isAppealable(f.finding_type) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs"
+                                disabled={generatingId === f.id}
+                                onClick={e => handleGenerateLetter(f, e)}
+                              >
+                                {generatingId === f.id ? '...' : 'Letter'}
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-xs text-green-700 hover:bg-green-50"
+                              disabled={updatingId === f.id}
+                              onClick={e => updateStatus(f.id, 'resolved', e)}
+                            >
+                              Resolve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-xs text-blue-700 hover:bg-blue-50"
+                              disabled={updatingId === f.id}
+                              onClick={e => updateStatus(f.id, 'closed', e)}
+                            >
+                              Close
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-xs text-muted-foreground hover:bg-zinc-100"
+                              disabled={updatingId === f.id}
+                              onClick={e => updateStatus(f.id, 'ignored', e)}
+                            >
+                              Ignore
+                            </Button>
+                          </>
                         )}
-                        {f.status === 'open' && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 px-2 text-xs text-green-700 hover:bg-green-50"
-                            disabled={updatingId === f.id}
-                            onClick={e => updateStatus(f.id, 'resolved', e)}
-                          >
-                            Resolve
-                          </Button>
-                        )}
-                        {f.status === 'open' && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 px-2 text-xs text-muted-foreground hover:bg-zinc-100"
-                            disabled={updatingId === f.id}
-                            onClick={e => updateStatus(f.id, 'ignored', e)}
-                          >
-                            Ignore
-                          </Button>
-                        )}
-                        {f.status !== 'open' && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 px-2 text-xs text-muted-foreground hover:bg-zinc-100"
-                            disabled={updatingId === f.id}
-                            onClick={e => updateStatus(f.id, 'open', e)}
-                          >
-                            Reopen
-                          </Button>
+
+                        {/* Closed tab actions */}
+                        {activeTab === 'closed' && (
+                          <>
+                            {isAppealable(f.finding_type) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs"
+                                disabled={generatingId === f.id}
+                                onClick={e => handleGenerateLetter(f, e)}
+                              >
+                                {generatingId === f.id ? '...' : 'Letter'}
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-xs text-muted-foreground hover:bg-zinc-100"
+                              disabled={updatingId === f.id}
+                              onClick={e => updateStatus(f.id, 'open', e)}
+                            >
+                              Reopen
+                            </Button>
+                          </>
                         )}
                       </div>
                     </td>
@@ -448,14 +539,10 @@ function ResultsContent() {
           </div>
           <Separator />
           <div className="px-4 py-3 text-xs text-muted-foreground">
-            Showing {findings.length} finding{findings.length !== 1 ? 's' : ''}.
+            Showing {displayFindings.length} {activeTab === 'open' ? 'open' : 'closed'} finding{displayFindings.length !== 1 ? 's' : ''}.
             Click any row to view full detail.
           </div>
         </Card>
-      )}
-
-      {loading && (
-        <p className="text-muted-foreground">Loading findings...</p>
       )}
     </div>
   )
@@ -463,7 +550,11 @@ function ResultsContent() {
 
 export default function ResultsPage() {
   return (
-    <Suspense fallback={<div className="mx-auto max-w-7xl px-4 py-8 sm:px-6"><p className="text-muted-foreground">Loading...</p></div>}>
+    <Suspense fallback={
+      <div className="flex min-h-[400px] items-center justify-center">
+        <p className="text-sm text-muted-foreground">Loading results...</p>
+      </div>
+    }>
       <ResultsContent />
     </Suspense>
   )
