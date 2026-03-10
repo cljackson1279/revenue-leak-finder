@@ -54,8 +54,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No findings to include in packet' }, { status: 400 })
     }
 
-    // Generate PDF
-    const pdfBuffer = generateAppealPacketPdf({
+    // Generate PDF (async with pdfkit)
+    const pdfBuffer = await generateAppealPacketPdf({
       accountName,
       findings: findings as Finding[],
       uploadIds: upload_id ? [upload_id] : [...new Set(findings.map((f: Finding) => f.upload_id))],
