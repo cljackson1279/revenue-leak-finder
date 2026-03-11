@@ -263,22 +263,55 @@ export function extractHeader(text: string): PdfHeader {
 
     // ── Payer ──
     if (!header.payer) {
-      // Handles all formats:
-      //   "Payer AETNA COMMERCIAL"   (no colon, value on same line)
-      //   "Payer: AETNA COMMERCIAL"  (colon, value on same line)
-      //   "Payer"                    (label alone, value on next line)
+      // Strategy 1: labeled at line start
+      //   "Payer: AETNA COMMERCIAL"  /  "Insurance Company: ..."  /  "Plan Name: ..."  /  "Carrier: ..."
       if (/^(?:Payer|Insurance\s*(?:Company|Name|Plan)?|Plan\s*Name|Carrier)\b/i.test(line)) {
         let val = getFieldValue(lineIdx, /^(?:Payer|Insurance\s*(?:Company|Name|Plan)?|Plan\s*Name|Carrier)\s*[:\-]?\s*(.*)/i)
         if (val && val.length > 1) {
-          // Strip trailing claim numbers, NPI, address suffixes that may appear on the same line
-          // e.g. "BlueCross BlueShield of Texas CLM-2026-00001" → "BlueCross BlueShield of Texas"
           val = val
-            .replace(/\s+(?:CLM|CLAIM|REF|REFERENCE|CONTROL|ICN|DCN)[\-:\s]\S+.*/i, '')  // trailing claim ref
-            .replace(/\s+NPI[:\s]\d{10}.*/i, '')                                           // trailing NPI
-            .replace(/\s+(?:P\.?O\.?\s*Box|\d{1,5}\s+\w+\s+(?:St|Ave|Blvd|Dr|Rd|Ln|Way)).*/i, '') // trailing address
-            .replace(/\s+\d{5}(?:-\d{4})?\s*$/, '')                                        // trailing ZIP code
+            .replace(/\s+(?:CLM|CLAIM|REF|REFERENCE|CONTROL|ICN|DCN)[\-:\s]\S+.*/i, '')
+            .replace(/\s+NPI[:\s]\d{10}.*/i, '')
+            .replace(/\s+(?:P\.?O\.?\s*Box|\d{1,5}\s+\w+\s+(?:St|Ave|Blvd|Dr|Rd|Ln|Way)).*/i, '')
+            .replace(/\s+\d{5}(?:-\d{4})?\s*$/, '')
             .trim()
           if (val.length > 1) {
+            header.payer = val
+            continue
+          }
+        }
+      }
+
+      // Strategy 2: "Plan:" inline anywhere on the line (e.g. "Patient ID: X  Plan: Aetna PPO")
+      // Distinct from "Plan Name:" — bare "Plan:" is common in Aetna/UHC remittance formats
+      if (!header.payer) {
+        const planInline = line.match(/\bPlan\s*:\s*([A-Za-z][^\t\n|]{2,60})/i)
+        if (planInline) {
+          let val = planInline[1].trim()
+            .replace(/\s+(?:CLM|CLAIM|REF|REFERENCE|CONTROL|ICN|DCN)[\-:\s]\S+.*/i, '')
+            .replace(/\s+NPI[:\s]\d{10}.*/i, '')
+            .replace(/\s+\d{5}(?:-\d{4})?\s*$/, '')
+            .replace(/\s*\|.*$/, '')  // strip pipe-separated trailing fields
+            .trim()
+          // Reject if it looks like a date, ID, or number
+          if (val.length > 1 && !/^\d/.test(val) && !/\d{4}[-\/]\d{2}/.test(val)) {
+            header.payer = val
+            continue
+          }
+        }
+      }
+
+      // Strategy 3: inline "Payer:" not at line start
+      // e.g. "Group: GRP-001  Payer: Aetna Commercial"
+      if (!header.payer) {
+        const payerInline = line.match(/\bPayer\s*:\s*([A-Za-z][^\t\n|]{2,60})/i)
+        if (payerInline) {
+          let val = payerInline[1].trim()
+            .replace(/\s+(?:CLM|CLAIM|REF|REFERENCE|CONTROL|ICN|DCN)[\-:\s]\S+.*/i, '')
+            .replace(/\s+NPI[:\s]\d{10}.*/i, '')
+            .replace(/\s+\d{5}(?:-\d{4})?\s*$/, '')
+            .replace(/\s*\|.*$/, '')
+            .trim()
+          if (val.length > 1 && !/^\d/.test(val) && !/\d{4}[-\/]\d{2}/.test(val)) {
             header.payer = val
             continue
           }
@@ -372,6 +405,40 @@ export function extractHeader(text: string): PdfHeader {
       if (m && m[1]) {
         header.npi = m[1].trim()
         continue
+      }
+    }
+  }
+
+  // ── Payer: Strategy 4 — unlabeled payer name as 2nd line after document title ──
+  // Many real-world EOBs and remittance advices put the payer name on the very first
+  // content line after the document title, with no label prefix:
+  //   Line 0: "EXPLANATION OF BENEFITS"  or  "REMITTANCE ADVICE — CLAIM DETERMINATION"
+  //   Line 1: "Aetna Commercial PPO"      or  "Blue Cross Blue Shield of New Jersey PPO"
+  // This is the most common format for Aetna, BCBS, UHC, Cigna, and Humana.
+  if (!header.payer && lines.length >= 2) {
+    // Find the document title line (first line matching EOB/remittance title patterns)
+    const titlePattern = /^(?:EXPLANATION\s+OF\s+BENEFITS|REMITTANCE\s+ADVICE|EOB|EXPLANATION\s+OF\s+PAYMENT|ELECTRONIC\s+REMITTANCE|PAYMENT\s+ADVICE|CLAIM\s+DETERMINATION|SUMMARY\s+OF\s+BENEFITS)\b/i
+    const knownPayerPattern = /\b(?:Aetna|UnitedHealthcare|United\s*Health(?:care)?|UHC|Cigna|Humana|Anthem|BCBS|BlueCross|BlueShield|Blue\s*Cross|Blue\s*Shield|Medicare|Medicaid|Tricare|Molina|Centene|WellCare|Magellan|Optum|Oxford|Empire|Highmark|Carefirst|Premera|Regence|GEHA|MultiPlan|Coventry|HealthNet|Health\s*Net|Kaiser|Amerihealth|AmeriHealth|Horizon|Independence|Tufts|Harvard\s*Pilgrim|HCSC|BCBSIL|BCBSNJ|BCBSTX|BCBSMA|BCBSFL|BCBSGA|BCBSAZ|BCBSNC|BCBSSC|BCBSTN|BCBSAL|BCBSOK|BCBSKS|BCBSNE|BCBSWY|BCBSND|BCBSSD|BCBSMT|BCBSID|BCBSUT|BCBSNM|BCBSCO|BCBSNV|BCBSAK|BCBSHI|BCBSOR|BCBSWA)\b/i
+    for (let i = 0; i < Math.min(3, lines.length - 1); i++) {
+      if (titlePattern.test(lines[i])) {
+        // Check the next 1-2 lines for an unlabeled payer name
+        for (let j = i + 1; j <= Math.min(i + 2, lines.length - 1); j++) {
+          const candidate = lines[j].trim()
+          // Must not be a label line, dollar amount, date, or column header
+          if (!candidate) continue
+          if (/\$\s*\d/.test(candidate)) continue
+          if (isColumnHeaderLine(candidate)) continue
+          if (/^(?:Payer|Insurance|Provider|Patient|Claim|Date|Member|Group|Plan|Remit|TIN|NPI|EOB|Account)\b.*:/i.test(candidate)) continue
+          if (/\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}/.test(candidate)) continue  // date
+          // Accept if it contains a known payer keyword OR looks like a company name
+          // (starts with capital letter, no digits at start, reasonable length)
+          if (knownPayerPattern.test(candidate) ||
+              (/^[A-Z][a-zA-Z\s&,\.\-']{3,60}$/.test(candidate) && candidate.split(' ').length <= 8)) {
+            header.payer = candidate
+            break
+          }
+        }
+        if (header.payer) break
       }
     }
   }
@@ -600,8 +667,22 @@ function extractTableRows(text: string): PdfLineItem[] {
 
     // ── Extract adjustment codes ──
     const adjCodes: string[] = []
-    const adjMatch = line.match(/\b(CO-\d+|PR-\d+|OA-\d+|PI-\d+)\b/gi)
-    if (adjMatch) adjCodes.push(...adjMatch.map(c => c.toUpperCase()))
+    // Format A: standard "CO-50", "OA-45", "PR-1", "PI-97" (group-hyphen-code)
+    const adjMatchStd = line.match(/\b(CO-\d+|PR-\d+|OA-\d+|PI-\d+)\b/gi)
+    if (adjMatchStd) adjCodes.push(...adjMatchStd.map(c => c.toUpperCase()))
+    // Format B: bare CARC code at end of data row (e.g. Aetna: "...  $0.00  $0.00  50")
+    // Only capture if no standard codes were found and the last token is a 1-3 digit number
+    // that is a plausible CARC code (1-999, not a year or zip)
+    if (adjCodes.length === 0) {
+      const bareMatch = line.match(/(?:\s|\$0\.00)\s+(\d{1,3})\s*$/)
+      if (bareMatch) {
+        const code = bareMatch[1]
+        const num = parseInt(code, 10)
+        if (num >= 1 && num <= 999) {
+          adjCodes.push(`CO-${code}`)  // Assume CO group (most common for denials)
+        }
+      }
+    }
 
     // ── Map amounts to fields using ORDER-BASED mapping ──
     // The key insight: amounts appear in the same order as the header columns.
@@ -729,6 +810,36 @@ export function extractLineItems(text: string, pageCount: number): { lineItems: 
 
   // Strategy 1: Table-row extraction (most reliable)
   const lineItems = extractTableRows(text)
+
+  // Strategy 2: Enrich line items with CARC codes from the CARC/Adjustment section.
+  // Many EOBs (Aetna, UHC, Cigna) have a separate "CLAIM ADJUSTMENT REASON CODES" section
+  // formatted as:  CODE  GROUP  DESCRIPTION
+  //               50    CO     These are non-covered services...
+  // The data row regex only captures inline codes; this post-pass captures the section codes.
+  if (lineItems.length > 0) {
+    // Match lines in the CARC section: leading number (1-999), then a group code (CO/OA/PR/PI)
+    // e.g. "50 CO These are non-covered services..."
+    // e.g. "97 CO  Claim adjusted because this procedure/service is not paid separately."
+    const carcSectionCodes: string[] = []
+    const carcSectionPattern = /^(\d{1,3})\s+(CO|OA|PR|PI)\b/gim
+    let sm: RegExpExecArray | null
+    while ((sm = carcSectionPattern.exec(text)) !== null) {
+      const code = sm[1]
+      const group = sm[2].toUpperCase()
+      const num = parseInt(code, 10)
+      if (num >= 1 && num <= 999) {
+        carcSectionCodes.push(`${group}-${code}`)
+      }
+    }
+    // If we found CARC section codes, merge them into line items that have no adj codes
+    if (carcSectionCodes.length > 0) {
+      for (const item of lineItems) {
+        if (item.adjustmentCodes.length === 0) {
+          item.adjustmentCodes.push(...carcSectionCodes)
+        }
+      }
+    }
+  }
 
   // Collect evidence of what we found
   const cptRegex = /\b(\d{5})\b/g
