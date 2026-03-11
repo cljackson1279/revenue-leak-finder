@@ -118,6 +118,10 @@ export default function PilotPage() {
             Revenue Recovery Engine
           </Link>
           <div className="flex items-center gap-3">
+            {/* Current page indicator */}
+            <span className="hidden rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700 sm:inline">
+              30-Day Pilot Offer
+            </span>
             <Link href="/login">
               <Button variant="outline" size="sm">Sign in</Button>
             </Link>
@@ -292,14 +296,14 @@ export default function PilotPage() {
 
       {/* ── Footer ── */}
       <footer className="border-t bg-white px-4 py-8 sm:px-6">
-        <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-3 text-xs text-zinc-400 sm:flex-row">
+        <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 text-xs text-zinc-400 sm:flex-row">
           <p>© {new Date().getFullYear()} Revenue Recovery Engine. All rights reserved.</p>
-          <p>
-            Questions?{' '}
-            <a href="mailto:hello@revenuerecoveryengine.com" className="underline hover:text-zinc-600">
-              hello@revenuerecoveryengine.com
-            </a>
-          </p>
+          <div className="flex items-center gap-5">
+            <Link href="/" className="hover:text-zinc-600">Home</Link>
+            <Link href="/pilot" className="font-semibold text-blue-700 underline hover:text-blue-900">30-Day Pilot — $500</Link>
+            <Link href="/login" className="hover:text-zinc-600">Sign in</Link>
+            <a href="mailto:hello@revenuerecoveryengine.com" className="hover:text-zinc-600">Contact</a>
+          </div>
         </div>
       </footer>
 

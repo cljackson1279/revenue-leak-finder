@@ -22,12 +22,17 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-zinc-50">
+
+      {/* ── Header nav ── */}
       <nav className="border-b bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
           <h1 className="text-xl font-semibold tracking-tight">Revenue Recovery Engine</h1>
-          <div className="flex gap-4">
+          <div className="flex items-center gap-3">
+            {/* Prominent pilot link — solid blue, visible at a glance */}
             <Link href="/pilot">
-              <Button variant="ghost">Start a Pilot</Button>
+              <Button className="bg-blue-700 text-white hover:bg-blue-800">
+                Start a Pilot — $500
+              </Button>
             </Link>
             <Link href="/login">
               <Button variant="outline">Sign in</Button>
@@ -36,6 +41,7 @@ export default function Home() {
         </div>
       </nav>
 
+      {/* ── Hero ── */}
       <main className="mx-auto max-w-5xl px-4 py-24 sm:px-6">
         <div className="mb-16 text-center">
           <h1 className="mb-4 text-5xl font-semibold tracking-tight">
@@ -45,15 +51,29 @@ export default function Home() {
             Tell me what money I&apos;m missing and exactly what to do next, with the paperwork ready.
             Analyze 835 ERAs and EOB PDFs to find underpayments, denials, and billing errors in minutes.
           </p>
-          <div className="flex justify-center gap-4">
+          <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
+            {/* Primary CTA — pilot offer */}
+            <Link href="/pilot">
+              <Button size="lg" className="h-12 bg-blue-700 px-8 text-white hover:bg-blue-800">
+                Start a 30-Day Pilot — $500
+              </Button>
+            </Link>
+            {/* Secondary CTA — sign in */}
             <Link href="/login">
-              <Button size="lg" className="h-12 px-8">
-                Get started
+              <Button size="lg" variant="outline" className="h-12 px-8">
+                Sign in
               </Button>
             </Link>
           </div>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Already a customer?{' '}
+            <Link href="/login" className="underline hover:text-zinc-900">
+              Sign in to your dashboard →
+            </Link>
+          </p>
         </div>
 
+        {/* ── How it works cards ── */}
         <div className="grid gap-6 sm:grid-cols-4">
           <Card className="p-6">
             <div className="mb-2 text-lg font-medium">1. Upload</div>
@@ -83,13 +103,47 @@ export default function Home() {
             </p>
           </Card>
         </div>
+
+        {/* ── Pilot callout banner ── */}
+        <div className="mt-12 rounded-xl border border-blue-200 bg-blue-50 px-6 py-8 text-center sm:px-10">
+          <p className="mb-1 text-sm font-semibold uppercase tracking-widest text-blue-700">
+            30-Day Pilot Offer
+          </p>
+          <h2 className="mb-3 text-2xl font-semibold text-zinc-900">
+            $500 flat fee. 25% success fee on recovered dollars only.
+          </h2>
+          <p className="mx-auto mb-6 max-w-xl text-sm leading-relaxed text-zinc-600">
+            Independent specialty practices: upload your ERA or EOB files, get a ranked list of
+            underpayments and appealable denials, and receive ready-to-send appeal packets — all
+            within 30 days. No long-term contract.
+          </p>
+          <Link href="/pilot">
+            <Button size="lg" className="bg-blue-700 text-white hover:bg-blue-800">
+              See the full pilot offer →
+            </Button>
+          </Link>
+        </div>
       </main>
 
+      {/* ── Footer ── */}
       <footer className="border-t bg-white py-8">
-        <div className="mx-auto max-w-5xl px-4 text-center text-sm text-muted-foreground sm:px-6">
-          Revenue Recovery Engine &copy; {new Date().getFullYear()}
+        <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 px-4 text-sm text-muted-foreground sm:flex-row sm:px-6">
+          <p>Revenue Recovery Engine &copy; {new Date().getFullYear()}</p>
+          <div className="flex items-center gap-6">
+            {/* Pilot link in footer — always visible */}
+            <Link href="/pilot" className="font-medium text-blue-700 hover:text-blue-900 underline">
+              30-Day Pilot — $500
+            </Link>
+            <Link href="/login" className="hover:text-zinc-900">
+              Sign in
+            </Link>
+            <a href="mailto:hello@revenuerecoveryengine.com" className="hover:text-zinc-900">
+              Contact
+            </a>
+          </div>
         </div>
       </footer>
+
     </div>
   )
 }
