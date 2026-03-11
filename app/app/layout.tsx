@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Revenue Recovery Engine',
+  title: 'MedicalRouter',
   description: 'Identify underpayments, denied claims, and revenue leaks from your 835 ERA and EOB documents.',
 }
 

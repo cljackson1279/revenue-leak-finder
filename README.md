@@ -1,4 +1,4 @@
-# Revenue Recovery Engine
+# MedicalRouter
 
 A deterministic medical billing analysis tool that parses 835 ERA files and EOB PDFs to identify underpayments, appealable denials, and revenue recovery opportunities.
 

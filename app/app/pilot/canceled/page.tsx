@@ -3,7 +3,7 @@ import { XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export const metadata = {
-  title: 'Checkout Canceled — Revenue Recovery Engine',
+  title: 'Checkout Canceled — MedicalRouter',
   description: 'Your checkout was canceled. No payment was taken.',
 }
 
@@ -15,7 +15,7 @@ export default function PilotCanceledPage() {
       <nav className="border-b bg-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 sm:px-6">
           <Link href="/" className="text-base font-semibold tracking-tight text-zinc-900">
-            Revenue Recovery Engine
+            MedicalRouter
           </Link>
         </div>
       </nav>
@@ -36,10 +36,10 @@ export default function PilotCanceledPage() {
             If you have questions about the pilot offer or want to talk through whether it is
             right for your practice, email us at{' '}
             <a
-              href="mailto:hello@revenuerecoveryengine.com"
+              href="mailto:[CONTACT_EMAIL]"
               className="text-blue-700 underline hover:text-blue-900"
             >
-              hello@revenuerecoveryengine.com
+              [CONTACT_EMAIL]
             </a>{' '}
             or book a demo.
           </p>
@@ -49,7 +49,7 @@ export default function PilotCanceledPage() {
                 Return to pilot page
               </Button>
             </Link>
-            <a href="mailto:hello@revenuerecoveryengine.com">
+            <a href="mailto:[CONTACT_EMAIL]">
               <Button variant="outline" className="w-full sm:w-auto">
                 Contact us
               </Button>
@@ -61,7 +61,7 @@ export default function PilotCanceledPage() {
       {/* Footer */}
       <footer className="border-t bg-white px-4 py-6 sm:px-6">
         <p className="text-center text-xs text-zinc-400">
-          © {new Date().getFullYear()} Revenue Recovery Engine. All rights reserved.
+          © {new Date().getFullYear()} MedicalRouter. All rights reserved.
         </p>
       </footer>
 

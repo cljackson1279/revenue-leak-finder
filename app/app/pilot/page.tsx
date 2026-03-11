@@ -115,7 +115,7 @@ export default function PilotPage() {
       <nav className="border-b bg-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 sm:px-6">
           <Link href="/" className="text-base font-semibold tracking-tight text-zinc-900">
-            Revenue Recovery Engine
+            MedicalRouter
           </Link>
           <div className="flex items-center gap-3">
             {/* Current page indicator */}
@@ -145,7 +145,7 @@ export default function PilotPage() {
           </p>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <StartPilotButton />
-            <a href="mailto:hello@revenuerecoveryengine.com">
+            <a href="mailto:[CONTACT_EMAIL]">
               <Button variant="outline" size="lg" className="w-full sm:w-auto">
                 Contact Us
               </Button>
@@ -293,7 +293,7 @@ export default function PilotPage() {
           </p>
           <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
             <StartPilotButton />
-            <a href="mailto:hello@revenuerecoveryengine.com">
+            <a href="mailto:[CONTACT_EMAIL]">
               <Button
                 variant="outline"
                 size="lg"

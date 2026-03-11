@@ -1,6 +1,6 @@
-# Revenue Recovery Engine — App
+# MedicalRouter — App
 
-This is the Next.js application for the Revenue Recovery Engine. See the [root README](../README.md) for full architecture documentation and the [Production Checklist](../PRODUCTION_CHECKLIST.md) for deployment instructions.
+This is the Next.js application for the MedicalRouter. See the [root README](../README.md) for full architecture documentation and the [Production Checklist](../PRODUCTION_CHECKLIST.md) for deployment instructions.
 
 ## Quick Start
 

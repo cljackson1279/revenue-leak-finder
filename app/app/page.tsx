@@ -26,7 +26,7 @@ export default function Home() {
       {/* ── Header nav ── */}
       <nav className="border-b bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-          <h1 className="text-xl font-semibold tracking-tight">Revenue Recovery Engine</h1>
+          <h1 className="text-xl font-semibold tracking-tight">MedicalRouter</h1>
           <div className="flex items-center gap-3">
             {/* Prominent pilot link — solid blue, visible at a glance */}
             <Link href="/pilot">

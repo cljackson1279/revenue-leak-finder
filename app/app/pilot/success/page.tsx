@@ -3,7 +3,7 @@ import { CheckCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export const metadata = {
-  title: 'Pilot Started — Revenue Recovery Engine',
+  title: 'Pilot Started — MedicalRouter',
   description: 'Your 30-Day Revenue Recovery Pilot has been confirmed.',
 }
 
@@ -15,7 +15,7 @@ export default function PilotSuccessPage() {
       <nav className="border-b bg-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 sm:px-6">
           <Link href="/" className="text-base font-semibold tracking-tight text-zinc-900">
-            Revenue Recovery Engine
+            MedicalRouter
           </Link>
         </div>
       </nav>
@@ -37,10 +37,10 @@ export default function PilotSuccessPage() {
             follow up within one business day to get your 835 ERA or EOB files and begin
             the analysis. If you have questions in the meantime, email us at{' '}
             <a
-              href="mailto:hello@revenuerecoveryengine.com"
+              href="mailto:[CONTACT_EMAIL]"
               className="text-blue-700 underline hover:text-blue-900"
             >
-              hello@revenuerecoveryengine.com
+              [CONTACT_EMAIL]
             </a>
             .
           </p>
@@ -83,7 +83,7 @@ export default function PilotSuccessPage() {
       {/* Footer */}
       <footer className="border-t bg-white px-4 py-6 sm:px-6">
         <p className="text-center text-xs text-zinc-400">
-          © {new Date().getFullYear()} Revenue Recovery Engine. All rights reserved.
+          © {new Date().getFullYear()} MedicalRouter. All rights reserved.
         </p>
       </footer>
 

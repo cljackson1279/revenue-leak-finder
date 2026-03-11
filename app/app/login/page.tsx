@@ -119,7 +119,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md p-8">
         {/* Header */}
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">Revenue Recovery Engine</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">MedicalRouter</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             {mode === 'signin' ? 'Sign in to your account' : 'Create your account'}
           </p>

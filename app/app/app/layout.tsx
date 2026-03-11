@@ -56,7 +56,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
           <div className="flex items-center gap-8">
             <Link href="/app/dashboard" className="text-xl font-semibold tracking-tight">
-              Revenue Recovery Engine
+              MedicalRouter
             </Link>
             <div className="flex gap-6">
               {navItems.map(item => (
