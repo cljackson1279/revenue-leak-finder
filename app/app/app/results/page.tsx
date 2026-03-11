@@ -21,15 +21,52 @@ type Finding = {
   paid_amount: number | null
   patient_responsibility: number | null
   underpayment_amount: number | null
+  denial_amount: number | null
+  denial_category: string | null
+  appeal_status: string | null
+  appeal_by_date: string | null
+  appeal_deadline_days: number | null
   carc_codes: string[] | null
   rarc_codes: string[] | null
   status: string
   created_at: string
 }
 
-// Status groups
 const OPEN_STATUSES = ['open']
 const CLOSED_STATUSES = ['resolved', 'ignored', 'closed']
+
+const DENIAL_CATEGORY_LABELS: Record<string, string> = {
+  medical_necessity: 'Medical Necessity',
+  timely_filing: 'Timely Filing',
+  bundling: 'Bundling',
+  missing_info: 'Missing Info',
+  authorization: 'Authorization',
+  not_covered: 'Not Covered',
+  duplicate_claim: 'Duplicate Claim',
+  other: 'Other',
+}
+
+const APPEAL_STATUS_LABELS: Record<string, string> = {
+  not_filed: 'Not Filed',
+  filed: 'Filed',
+  won: 'Won',
+  lost: 'Lost',
+  resubmitted: 'Resubmitted',
+}
+
+const APPEAL_STATUS_COLORS: Record<string, string> = {
+  not_filed: 'bg-gray-100 text-gray-600',
+  filed: 'bg-blue-100 text-blue-700',
+  won: 'bg-green-100 text-green-700',
+  lost: 'bg-red-100 text-red-700',
+  resubmitted: 'bg-purple-100 text-purple-700',
+}
+
+function daysUntil(dateStr: string | null): number | null {
+  if (!dateStr) return null
+  const diff = new Date(dateStr).getTime() - new Date().getTime()
+  return Math.ceil(diff / (1000 * 60 * 60 * 24))
+}
 
 function ResultsContent() {
   const supabase = getSupabase()
@@ -42,14 +79,14 @@ function ResultsContent() {
   const [error, setError] = useState<string | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [generatingId, setGeneratingId] = useState<string | null>(null)
+  const [updatingAppealId, setUpdatingAppealId] = useState<string | null>(null)
 
-  // Tab: 'open' | 'closed'
   const [activeTab, setActiveTab] = useState<'open' | 'closed'>('open')
 
-  // Filters (applied within the active tab)
   const [filterType, setFilterType] = useState<string>('')
   const [filterConfidence, setFilterConfidence] = useState<string>('')
   const [filterPayer, setFilterPayer] = useState<string>('')
+  const [filterDenialCategory, setFilterDenialCategory] = useState<string>('')
 
   const loadFindings = useCallback(async () => {
     try {
@@ -74,6 +111,7 @@ function ResultsContent() {
       if (filterType) query = query.eq('finding_type', filterType)
       if (filterConfidence) query = query.eq('confidence', filterConfidence)
       if (filterPayer) query = query.eq('payer', filterPayer)
+      if (filterDenialCategory) query = query.eq('denial_category', filterDenialCategory)
 
       query = query.limit(500)
 
@@ -89,7 +127,7 @@ function ResultsContent() {
     } finally {
       setLoading(false)
     }
-  }, [uploadId, filterType, filterConfidence, filterPayer])
+  }, [uploadId, filterType, filterConfidence, filterPayer, filterDenialCategory])
 
   useEffect(() => {
     loadFindings()
@@ -107,6 +145,28 @@ function ResultsContent() {
       setFindings(prev => prev.map(f => f.id === findingId ? { ...f, status: newStatus } : f))
     }
     setUpdatingId(null)
+  }
+
+  const updateAppealStatus = async (findingId: string, newAppealStatus: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setUpdatingAppealId(findingId)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+      const res = await fetch('/api/findings/appeal-status', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ finding_id: findingId, appeal_status: newAppealStatus }),
+      })
+      if (res.ok) {
+        setFindings(prev => prev.map(f => f.id === findingId ? { ...f, appeal_status: newAppealStatus } : f))
+      }
+    } finally {
+      setUpdatingAppealId(null)
+    }
   }
 
   const handleGenerateLetter = async (finding: Finding, e: React.MouseEvent) => {
@@ -197,17 +257,20 @@ function ResultsContent() {
     }
   }
 
-  // Split findings into open vs closed
   const openFindings = findings.filter(f => OPEN_STATUSES.includes(f.status))
   const closedFindings = findings.filter(f => CLOSED_STATUSES.includes(f.status))
   const displayFindings = activeTab === 'open' ? openFindings : closedFindings
 
-  // Totals — only count open findings for "potential recovery"
-  const totalPotentialRecovery = openFindings
-    .filter(f => (f.underpayment_amount ?? 0) > 0)
+  // Net Recoverable = sum of underpayment_amount on open UNDERPAID findings only
+  const totalNetRecoverable = openFindings
+    .filter(f => f.finding_type === 'UNDERPAID' && (f.underpayment_amount ?? 0) > 0)
     .reduce((s, f) => s + (f.underpayment_amount || 0), 0)
 
-  // Total recovered = sum of underpayment_amount on resolved/closed findings
+  // Denied at risk = sum of denial_amount on open DENIED_APPEALABLE findings
+  const totalDeniedAtRisk = openFindings
+    .filter(f => f.finding_type === 'DENIED_APPEALABLE' && (f.denial_amount ?? 0) > 0)
+    .reduce((s, f) => s + (f.denial_amount || 0), 0)
+
   const totalRecovered = closedFindings
     .filter(f => f.status === 'resolved' || f.status === 'closed')
     .filter(f => (f.underpayment_amount ?? 0) > 0)
@@ -217,6 +280,7 @@ function ResultsContent() {
     amount != null ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount) : '—'
 
   const uniquePayers = [...new Set(findings.map(f => f.payer).filter(Boolean))]
+  const uniqueDenialCategories = [...new Set(findings.map(f => f.denial_category).filter(Boolean))]
 
   const typeBadgeClass = (type: string) => {
     switch (type) {
@@ -237,6 +301,9 @@ function ResultsContent() {
 
   const isAppealable = (type: string) =>
     type === 'UNDERPAID' || type === 'DENIED_APPEALABLE'
+
+  const isDenial = (type: string) =>
+    type === 'DENIED_APPEALABLE' || type === 'DENIED_NON_APPEALABLE'
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
@@ -263,16 +330,16 @@ function ResultsContent() {
         <Card className="p-6">
           <p className="text-sm text-muted-foreground">Net Recoverable from Payer</p>
           <p className="text-2xl font-semibold tracking-tight text-green-700">
-            {formatCurrency(totalPotentialRecovery)}
+            {formatCurrency(totalNetRecoverable)}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">{openFindings.length} open findings</p>
+          <p className="mt-1 text-xs text-muted-foreground">Underpaid claims only</p>
         </Card>
         <Card className="p-6">
-          <p className="text-sm text-muted-foreground">Total Recovered</p>
-          <p className="text-2xl font-semibold tracking-tight text-blue-700">
-            {formatCurrency(totalRecovered)}
+          <p className="text-sm text-muted-foreground">Denied — Amount at Risk</p>
+          <p className="text-2xl font-semibold tracking-tight text-orange-700">
+            {formatCurrency(totalDeniedAtRisk)}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">{closedFindings.filter(f => f.status === 'resolved' || f.status === 'closed').length} resolved</p>
+          <p className="mt-1 text-xs text-muted-foreground">Appealable denials pending</p>
         </Card>
         <Card className="p-6">
           <p className="text-sm text-muted-foreground">Open Findings</p>
@@ -288,7 +355,7 @@ function ResultsContent() {
         </Card>
       </div>
 
-      {/* Tabs: Open / Closed */}
+      {/* Tabs */}
       <div className="mb-4 flex border-b">
         <button
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -341,6 +408,21 @@ function ResultsContent() {
             </select>
           </div>
           <div>
+            <label className="mb-1 block text-xs text-muted-foreground">Denial Category</label>
+            <select
+              className="rounded border px-2 py-1 text-sm"
+              value={filterDenialCategory}
+              onChange={e => setFilterDenialCategory(e.target.value)}
+            >
+              <option value="">All</option>
+              {uniqueDenialCategories.map(cat => (
+                <option key={cat} value={cat || ''}>
+                  {DENIAL_CATEGORY_LABELS[cat || ''] || cat}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className="mb-1 block text-xs text-muted-foreground">Confidence</label>
             <select
               className="rounded border px-2 py-1 text-sm"
@@ -366,13 +448,13 @@ function ResultsContent() {
               ))}
             </select>
           </div>
-          {(filterType || filterConfidence || filterPayer) && (
+          {(filterType || filterConfidence || filterPayer || filterDenialCategory) && (
             <div className="flex items-end">
               <Button
                 variant="ghost"
                 size="sm"
                 className="text-xs text-muted-foreground"
-                onClick={() => { setFilterType(''); setFilterConfidence(''); setFilterPayer('') }}
+                onClick={() => { setFilterType(''); setFilterConfidence(''); setFilterPayer(''); setFilterDenialCategory('') }}
               >
                 Clear filters
               </Button>
@@ -381,14 +463,12 @@ function ResultsContent() {
         </div>
       </Card>
 
-      {/* Error */}
       {error && (
         <Card className="mb-6 border-red-200 bg-red-50 p-4">
           <p className="text-sm text-red-700">Could not load findings: {error}</p>
         </Card>
       )}
 
-      {/* Empty State */}
       {!loading && displayFindings.length === 0 && !error && (
         <Card className="p-8 text-center">
           <p className="text-muted-foreground">
@@ -412,128 +492,186 @@ function ResultsContent() {
                   <th className="px-4 py-3 font-medium">Payer</th>
                   <th className="px-4 py-3 font-medium">Date</th>
                   <th className="px-4 py-3 font-medium">Type</th>
+                  <th className="px-4 py-3 font-medium">Denial Category</th>
                   <th className="px-4 py-3 font-medium text-right">Billed</th>
                   <th className="px-4 py-3 font-medium text-right">Paid</th>
                   <th className="px-4 py-3 font-medium text-right">Net Recoverable</th>
+                  <th className="px-4 py-3 font-medium">Appeal Status</th>
                   <th className="px-4 py-3 font-medium">Conf.</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {displayFindings.map(f => (
-                  <tr
-                    key={f.id}
-                    className="cursor-pointer border-b last:border-0 hover:bg-zinc-50"
-                    onClick={() => router.push(`/app/results/${f.id}`)}
-                  >
-                    <td className="px-4 py-3 font-mono text-xs">{f.procedure_code || '—'}</td>
-                    <td className="px-4 py-3 text-xs">{f.payer || 'Unknown'}</td>
-                    <td className="px-4 py-3 text-xs">{f.service_date || '—'}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${typeBadgeClass(f.finding_type)}`}>
-                        {f.finding_type.replace(/_/g, ' ')}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right text-xs">{formatCurrency(f.billed_amount)}</td>
-                    <td className="px-4 py-3 text-right text-xs">{formatCurrency(f.paid_amount)}</td>
-                    <td className="px-4 py-3 text-right font-medium text-red-600">
-                      {f.underpayment_amount && f.underpayment_amount > 0
-                        ? formatCurrency(f.underpayment_amount)
-                        : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs ${
-                        f.confidence === 'High' ? 'text-green-700 font-medium' :
-                        f.confidence === 'Medium' ? 'text-yellow-700' :
-                        'text-gray-500'
-                      }`}>
-                        {f.confidence}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge variant={statusBadgeVariant(f.status)}>
-                        {f.status}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div
-                        className="flex items-center gap-1"
-                        onClick={e => e.stopPropagation()}
-                      >
-                        {/* Open tab actions */}
-                        {activeTab === 'open' && (
-                          <>
-                            {isAppealable(f.finding_type) && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2 text-xs"
-                                disabled={generatingId === f.id}
-                                onClick={e => handleGenerateLetter(f, e)}
-                              >
-                                {generatingId === f.id ? '...' : 'Letter'}
-                              </Button>
-                            )}
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 px-2 text-xs text-green-700 hover:bg-green-50"
-                              disabled={updatingId === f.id}
-                              onClick={e => updateStatus(f.id, 'resolved', e)}
-                            >
-                              Resolve
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 px-2 text-xs text-blue-700 hover:bg-blue-50"
-                              disabled={updatingId === f.id}
-                              onClick={e => updateStatus(f.id, 'closed', e)}
-                            >
-                              Close
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 px-2 text-xs text-muted-foreground hover:bg-zinc-100"
-                              disabled={updatingId === f.id}
-                              onClick={e => updateStatus(f.id, 'ignored', e)}
-                            >
-                              Ignore
-                            </Button>
-                          </>
-                        )}
+                {displayFindings.map(f => {
+                  const daysLeft = daysUntil(f.appeal_by_date)
+                  const isUrgent = daysLeft !== null && daysLeft <= 30 && daysLeft >= 0
+                  const isOverdue = daysLeft !== null && daysLeft < 0
+                  const displayRecoverable = f.finding_type === 'UNDERPAID'
+                    ? f.underpayment_amount
+                    : f.finding_type === 'DENIED_APPEALABLE'
+                    ? null // denial_amount shown separately in type badge tooltip
+                    : null
 
-                        {/* Closed tab actions */}
-                        {activeTab === 'closed' && (
-                          <>
-                            {isAppealable(f.finding_type) && (
+                  return (
+                    <tr
+                      key={f.id}
+                      className="cursor-pointer border-b last:border-0 hover:bg-zinc-50"
+                      onClick={() => router.push(`/app/results/${f.id}`)}
+                    >
+                      <td className="px-4 py-3 font-mono text-xs">{f.procedure_code || '—'}</td>
+                      <td className="px-4 py-3 text-xs">{f.payer || 'Unknown'}</td>
+                      <td className="px-4 py-3 text-xs">
+                        <div>{f.service_date || '—'}</div>
+                        {/* Appeal deadline urgency */}
+                        {isDenial(f.finding_type) && f.appeal_by_date && (
+                          <div className={`mt-0.5 text-xs font-medium ${
+                            isOverdue ? 'text-red-600' :
+                            isUrgent ? 'text-orange-600' :
+                            'text-gray-400'
+                          }`}>
+                            {isOverdue
+                              ? `Appeal overdue`
+                              : isUrgent
+                              ? `Appeal by ${f.appeal_by_date} (${daysLeft}d)`
+                              : `Appeal by ${f.appeal_by_date}`}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${typeBadgeClass(f.finding_type)}`}>
+                          {f.finding_type.replace(/_/g, ' ')}
+                        </span>
+                        {/* Denied amount at risk */}
+                        {isDenial(f.finding_type) && f.denial_amount && (
+                          <div className="mt-1 text-xs text-orange-600 font-medium">
+                            {formatCurrency(f.denial_amount)} at risk
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {f.denial_category ? (
+                          <span className="inline-flex items-center rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700">
+                            {DENIAL_CATEGORY_LABELS[f.denial_category] || f.denial_category}
+                          </span>
+                        ) : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-right text-xs">{formatCurrency(f.billed_amount)}</td>
+                      <td className="px-4 py-3 text-right text-xs">{formatCurrency(f.paid_amount)}</td>
+                      <td className="px-4 py-3 text-right font-medium text-red-600">
+                        {displayRecoverable && displayRecoverable > 0
+                          ? formatCurrency(displayRecoverable)
+                          : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        {isDenial(f.finding_type) ? (
+                          <div onClick={e => e.stopPropagation()}>
+                            <select
+                              className={`rounded-full px-2 py-0.5 text-xs font-medium border-0 cursor-pointer ${
+                                APPEAL_STATUS_COLORS[f.appeal_status || 'not_filed']
+                              }`}
+                              value={f.appeal_status || 'not_filed'}
+                              disabled={updatingAppealId === f.id}
+                              onChange={e => updateAppealStatus(f.id, e.target.value, e as unknown as React.MouseEvent)}
+                            >
+                              {Object.entries(APPEAL_STATUS_LABELS).map(([val, label]) => (
+                                <option key={val} value={val}>{label}</option>
+                              ))}
+                            </select>
+                          </div>
+                        ) : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs ${
+                          f.confidence === 'High' ? 'text-green-700 font-medium' :
+                          f.confidence === 'Medium' ? 'text-yellow-700' :
+                          'text-gray-500'
+                        }`}>
+                          {f.confidence}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge variant={statusBadgeVariant(f.status)}>
+                          {f.status}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div
+                          className="flex items-center gap-1"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          {activeTab === 'open' && (
+                            <>
+                              {isAppealable(f.finding_type) && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2 text-xs"
+                                  disabled={generatingId === f.id}
+                                  onClick={e => handleGenerateLetter(f, e)}
+                                >
+                                  {generatingId === f.id ? '...' : 'Letter'}
+                                </Button>
+                              )}
                               <Button
                                 size="sm"
-                                variant="outline"
-                                className="h-7 px-2 text-xs"
-                                disabled={generatingId === f.id}
-                                onClick={e => handleGenerateLetter(f, e)}
+                                variant="ghost"
+                                className="h-7 px-2 text-xs text-green-700 hover:bg-green-50"
+                                disabled={updatingId === f.id}
+                                onClick={e => updateStatus(f.id, 'resolved', e)}
                               >
-                                {generatingId === f.id ? '...' : 'Letter'}
+                                Resolve
                               </Button>
-                            )}
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 px-2 text-xs text-muted-foreground hover:bg-zinc-100"
-                              disabled={updatingId === f.id}
-                              onClick={e => updateStatus(f.id, 'open', e)}
-                            >
-                              Reopen
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-xs text-blue-700 hover:bg-blue-50"
+                                disabled={updatingId === f.id}
+                                onClick={e => updateStatus(f.id, 'closed', e)}
+                              >
+                                Close
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-xs text-muted-foreground hover:bg-zinc-100"
+                                disabled={updatingId === f.id}
+                                onClick={e => updateStatus(f.id, 'ignored', e)}
+                              >
+                                Ignore
+                              </Button>
+                            </>
+                          )}
+
+                          {activeTab === 'closed' && (
+                            <>
+                              {isAppealable(f.finding_type) && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2 text-xs"
+                                  disabled={generatingId === f.id}
+                                  onClick={e => handleGenerateLetter(f, e)}
+                                >
+                                  {generatingId === f.id ? '...' : 'Letter'}
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-xs text-muted-foreground hover:bg-zinc-100"
+                                disabled={updatingId === f.id}
+                                onClick={e => updateStatus(f.id, 'open', e)}
+                              >
+                                Reopen
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -550,11 +688,7 @@ function ResultsContent() {
 
 export default function ResultsPage() {
   return (
-    <Suspense fallback={
-      <div className="flex min-h-[400px] items-center justify-center">
-        <p className="text-sm text-muted-foreground">Loading results...</p>
-      </div>
-    }>
+    <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading results…</div>}>
       <ResultsContent />
     </Suspense>
   )

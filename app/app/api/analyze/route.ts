@@ -168,6 +168,18 @@ export async function POST(request: Request) {
         return 'Low'
       }
 
+      // Compute appeal_by_date from service_date + appeal_deadline_days
+      const computeAppealByDate = (serviceDate: string | null, deadlineDays: number): string | null => {
+        if (!serviceDate) return null
+        try {
+          const d = new Date(serviceDate)
+          d.setDate(d.getDate() + deadlineDays)
+          return d.toISOString().split('T')[0]
+        } catch {
+          return null
+        }
+      }
+
       const rows = findings.map(f => ({
         account_id: accountId,
         upload_id: upload_id,
@@ -179,6 +191,11 @@ export async function POST(request: Request) {
         paid_amount: f.paid_amount,
         patient_responsibility: f.patient_responsibility,
         underpayment_amount: f.underpayment_amount,
+        denial_amount: f.denial_amount ?? null,
+        denial_category: f.denial_category ?? null,
+        appeal_deadline_days: f.appeal_deadline_days ?? 90,
+        appeal_by_date: computeAppealByDate(f.service_date, f.appeal_deadline_days ?? 90),
+        appeal_status: 'not_filed',
         carc_codes: f.carc_codes,
         rarc_codes: f.rarc_codes,
         finding_type: f.finding_type,

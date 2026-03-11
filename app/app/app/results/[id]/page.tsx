@@ -23,6 +23,11 @@ type Finding = {
   paid_amount: number | null
   patient_responsibility: number | null
   underpayment_amount: number | null
+  denial_amount: number | null
+  denial_category: string | null
+  appeal_status: string | null
+  appeal_by_date: string | null
+  appeal_deadline_days: number | null
   carc_codes: string[] | null
   rarc_codes: string[] | null
   evidence: Record<string, unknown> | null
@@ -36,13 +41,45 @@ const carcMap = carcCodes as Record<string, { description: string }>
 const rarcMap = rarcCodes as Record<string, { description: string }>
 
 function getCarcDescription(code: string): string | null {
-  // CARC codes may be stored as "45", "CO-45", or "CO45"
   const normalized = code.replace(/^(CO|PR|OA|PI)-?/i, '')
   return carcMap[normalized]?.description || carcMap[code]?.description || null
 }
 
 function getRarcDescription(code: string): string | null {
   return rarcMap[code]?.description || null
+}
+
+const DENIAL_CATEGORY_LABELS: Record<string, string> = {
+  medical_necessity: 'Medical Necessity',
+  timely_filing: 'Timely Filing',
+  bundling: 'Bundling',
+  missing_info: 'Missing Info',
+  authorization: 'Authorization',
+  not_covered: 'Not Covered',
+  duplicate_claim: 'Duplicate Claim',
+  other: 'Other',
+}
+
+const APPEAL_STATUS_LABELS: Record<string, string> = {
+  not_filed: 'Not Filed',
+  filed: 'Filed',
+  won: 'Won',
+  lost: 'Lost',
+  resubmitted: 'Resubmitted',
+}
+
+const APPEAL_STATUS_COLORS: Record<string, string> = {
+  not_filed: 'bg-gray-100 text-gray-600',
+  filed: 'bg-blue-100 text-blue-700',
+  won: 'bg-green-100 text-green-700',
+  lost: 'bg-red-100 text-red-700',
+  resubmitted: 'bg-purple-100 text-purple-700',
+}
+
+function daysUntil(dateStr: string | null): number | null {
+  if (!dateStr) return null
+  const diff = new Date(dateStr).getTime() - new Date().getTime()
+  return Math.ceil(diff / (1000 * 60 * 60 * 24))
 }
 
 export default function FindingDetailPage() {
@@ -54,6 +91,7 @@ export default function FindingDetailPage() {
   const [finding, setFinding] = useState<Finding | null>(null)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
+  const [updatingAppeal, setUpdatingAppeal] = useState(false)
   const [generatingPacket, setGeneratingPacket] = useState(false)
 
   useEffect(() => {
@@ -81,6 +119,28 @@ export default function FindingDetailPage() {
       setFinding({ ...finding, status: newStatus })
     }
     setUpdating(false)
+  }
+
+  const updateAppealStatus = async (newAppealStatus: string) => {
+    if (!finding) return
+    setUpdatingAppeal(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+      const res = await fetch('/api/findings/appeal-status', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ finding_id: finding.id, appeal_status: newAppealStatus }),
+      })
+      if (res.ok) {
+        setFinding({ ...finding, appeal_status: newAppealStatus })
+      }
+    } finally {
+      setUpdatingAppeal(false)
+    }
   }
 
   const handleGenerateLetter = async () => {
@@ -134,6 +194,9 @@ export default function FindingDetailPage() {
   const isAppealable = (type: string) =>
     type === 'UNDERPAID' || type === 'DENIED_APPEALABLE'
 
+  const isDenial = (type: string) =>
+    type === 'DENIED_APPEALABLE' || type === 'DENIED_NON_APPEALABLE'
+
   if (loading) {
     return (
       <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
@@ -158,6 +221,10 @@ export default function FindingDetailPage() {
   const source = (evidence.source || {}) as Record<string, unknown>
   const codes = (evidence.codes || {}) as Record<string, unknown>
 
+  const daysLeft = daysUntil(finding.appeal_by_date)
+  const isUrgent = daysLeft !== null && daysLeft <= 30 && daysLeft >= 0
+  const isOverdue = daysLeft !== null && daysLeft < 0
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       {/* Header */}
@@ -173,6 +240,11 @@ export default function FindingDetailPage() {
             <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${typeBadgeClass(finding.finding_type)}`}>
               {finding.finding_type.replace(/_/g, ' ')}
             </span>
+            {finding.denial_category && (
+              <span className="inline-flex items-center rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700">
+                {DENIAL_CATEGORY_LABELS[finding.denial_category] || finding.denial_category}
+              </span>
+            )}
             <span className={`text-sm ${
               finding.confidence === 'High' ? 'text-green-700' :
               finding.confidence === 'Medium' ? 'text-yellow-700' :
@@ -186,11 +258,21 @@ export default function FindingDetailPage() {
           </div>
         </div>
         <div className="flex flex-col items-end gap-2">
-          {finding.underpayment_amount && finding.underpayment_amount > 0 && (
+          {/* Underpaid: show net recoverable */}
+          {finding.finding_type === 'UNDERPAID' && finding.underpayment_amount && finding.underpayment_amount > 0 && (
             <div className="text-right">
               <p className="text-xs text-muted-foreground">Net Recoverable from Payer</p>
               <p className="text-3xl font-semibold text-red-600">
                 {formatCurrency(finding.underpayment_amount)}
+              </p>
+            </div>
+          )}
+          {/* Denied: show amount at risk */}
+          {isDenial(finding.finding_type) && finding.denial_amount && finding.denial_amount > 0 && (
+            <div className="text-right">
+              <p className="text-xs text-muted-foreground">Amount at Risk (Denied)</p>
+              <p className="text-3xl font-semibold text-orange-600">
+                {formatCurrency(finding.denial_amount)}
               </p>
             </div>
           )}
@@ -207,6 +289,71 @@ export default function FindingDetailPage() {
       </div>
 
       <div className="space-y-6">
+        {/* Denial-specific card */}
+        {isDenial(finding.finding_type) && (
+          <Card className="border-orange-200 bg-orange-50 p-6">
+            <h2 className="mb-4 text-lg font-medium text-orange-900">Denial Details</h2>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div>
+                <p className="text-xs text-orange-700">Denial Category</p>
+                <p className="text-sm font-medium text-orange-900">
+                  {finding.denial_category
+                    ? (DENIAL_CATEGORY_LABELS[finding.denial_category] || finding.denial_category)
+                    : 'Not classified'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-orange-700">Appeal Status</p>
+                <div className="mt-1">
+                  <select
+                    className={`rounded-full px-3 py-1 text-sm font-medium border-0 cursor-pointer ${
+                      APPEAL_STATUS_COLORS[finding.appeal_status || 'not_filed']
+                    }`}
+                    value={finding.appeal_status || 'not_filed'}
+                    disabled={updatingAppeal}
+                    onChange={e => updateAppealStatus(e.target.value)}
+                  >
+                    {Object.entries(APPEAL_STATUS_LABELS).map(([val, label]) => (
+                      <option key={val} value={val}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-orange-700">Appeal Deadline</p>
+                {finding.appeal_by_date ? (
+                  <div>
+                    <p className={`text-sm font-medium ${
+                      isOverdue ? 'text-red-700' :
+                      isUrgent ? 'text-orange-700' :
+                      'text-orange-900'
+                    }`}>
+                      {finding.appeal_by_date}
+                    </p>
+                    <p className={`text-xs ${
+                      isOverdue ? 'text-red-600 font-semibold' :
+                      isUrgent ? 'text-orange-600 font-semibold' :
+                      'text-orange-700'
+                    }`}>
+                      {isOverdue
+                        ? `Deadline passed ${Math.abs(daysLeft!)} day${Math.abs(daysLeft!) !== 1 ? 's' : ''} ago`
+                        : daysLeft === 0
+                        ? 'Due today'
+                        : `${daysLeft} day${daysLeft !== 1 ? 's' : ''} remaining`}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-orange-700">
+                    {finding.appeal_deadline_days
+                      ? `${finding.appeal_deadline_days}-day window from DOS`
+                      : 'Not set — verify with payer contract'}
+                  </p>
+                )}
+              </div>
+            </div>
+          </Card>
+        )}
+
         {/* Key Details */}
         <Card className="p-6">
           <h2 className="mb-4 text-lg font-medium">Claim Details</h2>
@@ -232,7 +379,7 @@ export default function FindingDetailPage() {
 
         {/* Math Trace */}
         <Card className="p-6">
-          <h2 className="mb-4 text-lg font-medium">Math Trace</h2>
+          <h2 className="mb-4 text-lg font-medium">Payment Breakdown</h2>
           <div className="grid gap-4 sm:grid-cols-5">
             <div>
               <p className="text-xs text-muted-foreground">Billed</p>
@@ -251,27 +398,52 @@ export default function FindingDetailPage() {
               <p className="text-lg font-medium">{formatCurrency(finding.patient_responsibility)}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Net Recoverable from Payer</p>
-              <p className="text-lg font-semibold text-red-600">
-                {formatCurrency(finding.underpayment_amount)}
-              </p>
+              {finding.finding_type === 'UNDERPAID' ? (
+                <>
+                  <p className="text-xs text-muted-foreground">Net Recoverable from Payer</p>
+                  <p className="text-lg font-semibold text-red-600">
+                    {formatCurrency(finding.underpayment_amount)}
+                  </p>
+                </>
+              ) : isDenial(finding.finding_type) ? (
+                <>
+                  <p className="text-xs text-muted-foreground">Amount at Risk</p>
+                  <p className="text-lg font-semibold text-orange-600">
+                    {formatCurrency(finding.denial_amount)}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">Pending appeal outcome</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground">Net Recoverable</p>
+                  <p className="text-lg font-medium text-muted-foreground">—</p>
+                </>
+              )}
             </div>
           </div>
-          {'formula' in math && math.formula ? (
+          {finding.finding_type === 'UNDERPAID' && (
             <div className="mt-4 rounded bg-zinc-50 p-3">
               <p className="font-mono text-xs text-muted-foreground">
-                Formula: {String(math.formula)}
+                Formula: Net Recoverable = Allowed − Paid − Patient Responsibility
               </p>
-              {'expected_payer_payment' in math && math.expected_payer_payment != null ? (
-                <p className="font-mono text-xs text-muted-foreground">
-                  Expected Payer Payment: {formatCurrency(Number(math.expected_payer_payment))}
+              {'formula' in math && math.formula ? (
+                <p className="font-mono text-xs text-muted-foreground mt-1">
+                  {String(math.formula)}
                 </p>
               ) : null}
             </div>
-          ) : null}
+          )}
+          {isDenial(finding.finding_type) && (
+            <div className="mt-4 rounded bg-orange-50 p-3">
+              <p className="font-mono text-xs text-orange-700">
+                Note: Net Recoverable from Payer is not calculated for denied claims.
+                The amount at risk reflects the billed amount. Actual recovery depends on appeal outcome.
+              </p>
+            </div>
+          )}
         </Card>
 
-        {/* CARC / RARC Codes with WPC descriptions */}
+        {/* CARC / RARC Codes */}
         {((finding.carc_codes && finding.carc_codes.length > 0) ||
           (finding.rarc_codes && finding.rarc_codes.length > 0)) && (
           <Card className="p-6">
@@ -348,7 +520,7 @@ export default function FindingDetailPage() {
           <p className="text-sm leading-relaxed">{finding.action}</p>
         </Card>
 
-        {/* Evidence (non-PHI) */}
+        {/* Evidence */}
         <Card className="p-6">
           <h2 className="mb-4 text-lg font-medium">Evidence References</h2>
           <p className="mb-3 text-xs text-muted-foreground">

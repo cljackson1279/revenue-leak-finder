@@ -263,6 +263,23 @@ export function parse835(ediText: string): ParsedERA {
 
 // ─── Finding computation engine ─────────────────────────────────────────────
 
+export type DenialCategory =
+  | 'medical_necessity'
+  | 'timely_filing'
+  | 'bundling'
+  | 'missing_info'
+  | 'authorization'
+  | 'not_covered'
+  | 'duplicate_claim'
+  | 'other'
+
+export type AppealStatus =
+  | 'not_filed'
+  | 'filed'
+  | 'won'
+  | 'lost'
+  | 'resubmitted'
+
 export type FindingInput = {
   finding_type: 'UNDERPAID' | 'DENIED_APPEALABLE' | 'DENIED_NON_APPEALABLE' | 'NEEDS_REVIEW' | 'INCOMPLETE_DATA'
   confidence: 'High' | 'Medium' | 'Low'
@@ -273,7 +290,12 @@ export type FindingInput = {
   allowed_amount: number | null
   paid_amount: number | null
   patient_responsibility: number | null
+  /** Net Recoverable from Payer = Allowed - Paid - PatientResponsibility. Null for denied claims (unknown until reprocessed). */
   underpayment_amount: number | null
+  /** For denied claims: the billed amount at risk. Separate from underpayment_amount to avoid inflating recovery totals. */
+  denial_amount: number | null
+  denial_category: DenialCategory | null
+  appeal_deadline_days: number | null
   carc_codes: string[]
   rarc_codes: string[]
   action: string
@@ -323,6 +345,30 @@ const DENIAL_CARCS = new Set([
   '251', '252', '253', '254', '255', '256', '257', '258', '259', '260',
   '261', '262', '263', '264',
 ])
+
+/**
+ * Map a CARC code to a denial category for display and filtering.
+ * Based on the X12 CARC code definitions and common denial patterns.
+ */
+export function carcToDenialCategory(carcCode: string): DenialCategory {
+  const code = carcCode.trim()
+  // Medical necessity
+  if (['39', '50', '55', '56', '167', '197'].includes(code)) return 'medical_necessity'
+  // Timely filing
+  if (['29'].includes(code)) return 'timely_filing'
+  // Bundling / included in another service
+  if (['59', '97', '181', '182', '183', '184', '185', '186', '187', '188', '189'].includes(code)) return 'bundling'
+  // Missing information / billing errors
+  if (['4', '5', '16', '107', '125', '146', '147', '148', '149', '150', '151', '152'].includes(code)) return 'missing_info'
+  // Authorization / precertification
+  if (['15', '197'].includes(code)) return 'authorization'
+  // Not covered / benefit limit
+  if (['24', '26', '27', '35', '49', '96', '109', '119', '204'].includes(code)) return 'not_covered'
+  // Duplicate claim
+  if (['18'].includes(code)) return 'duplicate_claim'
+  // Default
+  return 'other'
+}
 
 /**
  * Compute findings from parsed 835 claims.
@@ -390,6 +436,9 @@ export function computeFindings(claims: ClaimData[]): FindingInput[] {
           paid_amount: paid || null,
           patient_responsibility: patientResponsibility || null,
           underpayment_amount: null,
+          denial_amount: null,
+          denial_category: null,
+          appeal_deadline_days: 90,
           carc_codes: carcCodes,
           rarc_codes: line.rarcCodes,
           action: 'Verify allowed amount and fee schedule reference; request EOB detail from payer; confirm patient responsibility breakdown.',
@@ -415,6 +464,9 @@ export function computeFindings(claims: ClaimData[]): FindingInput[] {
           paid_amount: paid,
           patient_responsibility: patientResponsibility,
           underpayment_amount: underpayment,
+          denial_amount: null,
+          denial_category: null,
+          appeal_deadline_days: 90,
           carc_codes: carcCodes,
           rarc_codes: line.rarcCodes,
           action: `File underpayment appeal with ${claim.payer}. Reference claim ${claim.claimId}, trace ${claim.traceNumber}. Expected payer payment: $${expectedPayer.toFixed(2)}, received: $${paid.toFixed(2)}. Underpayment: $${underpayment.toFixed(2)}.`,
@@ -427,7 +479,7 @@ export function computeFindings(claims: ClaimData[]): FindingInput[] {
               ...baseEvidence.math,
               expected_payer_payment: expectedPayer,
               underpayment,
-              formula: 'Underpayment = Allowed - PatientResponsibility - Paid',
+              formula: 'Net Recoverable from Payer = Allowed - PatientResponsibility - Paid',
             },
           },
         })
@@ -461,6 +513,12 @@ export function computeFindings(claims: ClaimData[]): FindingInput[] {
           )
 
           if (!alreadyFlagged || findingType !== 'NEEDS_REVIEW') {
+            // For denials: underpayment_amount stays null (unknown until reprocessed).
+            // denial_amount holds the billed amount at risk, kept separate to avoid inflating recovery totals.
+            const isDenialFinding = findingType === 'DENIED_APPEALABLE' || findingType === 'DENIED_NON_APPEALABLE'
+            const denialCategory = isDenialFinding ? carcToDenialCategory(adj.code) : null
+            // Appeal deadline: 90 days default; timely filing denials get 180 days
+            const deadlineDays = denialCategory === 'timely_filing' ? 180 : 90
             findings.push({
               finding_type: findingType,
               confidence: rule ? 'Medium' : 'Low',
@@ -471,7 +529,10 @@ export function computeFindings(claims: ClaimData[]): FindingInput[] {
               allowed_amount: allowed,
               paid_amount: paid,
               patient_responsibility: patientResponsibility,
-              underpayment_amount: adj.amount,
+              underpayment_amount: null, // Not set for denials — amount unknown until reprocessed
+              denial_amount: isDenialFinding ? adj.amount : null,
+              denial_category: denialCategory,
+              appeal_deadline_days: deadlineDays,
               carc_codes: [adj.code],
               rarc_codes: line.rarcCodes,
               action,
@@ -504,6 +565,9 @@ export function computeFindings(claims: ClaimData[]): FindingInput[] {
           paid_amount: paid,
           patient_responsibility: patientResponsibility,
           underpayment_amount: adj.amount,
+          denial_amount: null,
+          denial_category: null,
+          appeal_deadline_days: 90,
           carc_codes: [adj.code],
           rarc_codes: line.rarcCodes,
           action: `Review OA adjustment CARC ${adj.code} for $${adj.amount.toFixed(2)}. Determine if this is a valid other-payer adjustment or if it should be appealed.`,

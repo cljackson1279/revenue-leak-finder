@@ -812,6 +812,9 @@ export function pdfToFindings(
       paid_amount: null,
       patient_responsibility: null,
       underpayment_amount: null,
+      denial_amount: null,
+      denial_category: null,
+      appeal_deadline_days: null,
       carc_codes: [],
       rarc_codes: [],
       action: 'Could not extract structured line items from this PDF EOB. Steps: (1) Verify the PDF is a valid EOB document. (2) If scanned, enable OCR processing. (3) Manually enter key data or upload the corresponding 835 ERA file for full analysis.',
@@ -858,6 +861,18 @@ export function pdfToFindings(
         ? `Denial reason: ${denialReasons.join(', ')}.`
         : 'Review adjustment codes for denial reason.'
 
+      // Map CARC codes to denial category
+      const primaryCarc = carcCodes[0] || ''
+      const denialCategoryMap: Record<string, string> = {
+        '50': 'medical_necessity', '39': 'medical_necessity', '55': 'medical_necessity', '167': 'medical_necessity', '197': 'authorization',
+        '29': 'timely_filing',
+        '97': 'bundling', '59': 'bundling',
+        '16': 'missing_info', '4': 'missing_info', '5': 'missing_info', '125': 'missing_info',
+        '96': 'not_covered', '49': 'not_covered', '109': 'not_covered', '119': 'not_covered', '204': 'not_covered',
+        '18': 'duplicate_claim',
+      }
+      const denialCat = (denialCategoryMap[primaryCarc] || 'other') as import('./parse835').DenialCategory
+      const deadlineDays = denialCat === 'timely_filing' ? 180 : 90
       findings.push({
         finding_type: 'DENIED_APPEALABLE',
         confidence: item.matchConfidence === 'High' ? 'High' : 'Medium',
@@ -868,7 +883,10 @@ export function pdfToFindings(
         allowed_amount: item.allowed,
         paid_amount: item.paid,
         patient_responsibility: item.patientResponsibility || 0,
-        underpayment_amount: item.billed,
+        underpayment_amount: null, // Not set for denials — amount unknown until reprocessed
+        denial_amount: item.billed, // Billed amount at risk, tracked separately
+        denial_category: denialCat,
+        appeal_deadline_days: deadlineDays,
         carc_codes: carcCodes,
         rarc_codes: rarcCodes,
         action: `Claim denied: $${item.billed!.toFixed(2)} billed, $0.00 paid. ${reasonText} File appeal with supporting clinical documentation within the payer's appeal deadline.`,
@@ -915,6 +933,9 @@ export function pdfToFindings(
           paid_amount: item.paid,
           patient_responsibility: pr,
           underpayment_amount: underpayment,
+          denial_amount: null,
+          denial_category: null,
+          appeal_deadline_days: 90,
           carc_codes: carcCodes,
           rarc_codes: rarcCodes,
           action: `Potential underpayment of $${underpayment.toFixed(2)} detected. Allowed amount ($${item.allowed!.toFixed(2)}) minus patient responsibility ($${pr.toFixed(2)}) equals expected payer payment of $${expectedPayer.toFixed(2)}, but only $${item.paid!.toFixed(2)} was paid. File appeal for the $${underpayment.toFixed(2)} difference.`,
@@ -939,7 +960,7 @@ export function pdfToFindings(
             },
           },
         })
-      } else {
+        } else {
         findings.push({
           finding_type: 'NEEDS_REVIEW',
           confidence: 'Low',
@@ -951,6 +972,9 @@ export function pdfToFindings(
           paid_amount: item.paid,
           patient_responsibility: pr,
           underpayment_amount: null,
+          denial_amount: null,
+          denial_category: null,
+          appeal_deadline_days: 90,
           carc_codes: carcCodes,
           rarc_codes: rarcCodes,
           action: 'Line item extracted from PDF EOB. No underpayment detected. Verify amounts against 835 ERA for complete analysis.',
@@ -975,6 +999,9 @@ export function pdfToFindings(
         paid_amount: item.paid,
         patient_responsibility: item.patientResponsibility,
         underpayment_amount: null,
+        denial_amount: null,
+        denial_category: null,
+        appeal_deadline_days: 90,
         carc_codes: [],
         rarc_codes: [],
         action: `Billed $${item.billed.toFixed(2)} but only $${item.paid.toFixed(2)} paid (gap: $${gap.toFixed(2)}). Allowed amount not found in PDF — verify against contract or 835 ERA to determine if underpayment exists.`,
@@ -996,6 +1023,9 @@ export function pdfToFindings(
         paid_amount: item.paid,
         patient_responsibility: item.patientResponsibility,
         underpayment_amount: null,
+        denial_amount: null,
+        denial_category: null,
+        appeal_deadline_days: 90,
         carc_codes: [],
         rarc_codes: [],
         action: 'Partial data extracted from PDF EOB. Missing amounts prevent full analysis. Upload the corresponding 835 ERA file or manually verify and enter missing amounts.',

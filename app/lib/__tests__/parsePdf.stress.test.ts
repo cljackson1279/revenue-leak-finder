@@ -317,11 +317,14 @@ CPT DOS Units Billed Allowed Paid Patient Resp Adj Code
     expect(denied.length).toBe(2)
   })
 
-  test('denied claim underpayment equals billed amount', () => {
+  test('denied claim has denial_amount equal to billed and underpayment_amount is null', () => {
     const { findings } = analyzeText(text)
     const f90837 = findings.find(f => f.procedure_code === '90837')
     expect(f90837).toBeDefined()
-    expect(f90837!.underpayment_amount).toBe(200)
+    // Denied claims must NOT inflate Net Recoverable from Payer
+    expect(f90837!.underpayment_amount).toBeNull()
+    // Amount at risk is tracked separately as denial_amount
+    expect(f90837!.denial_amount).toBe(200)
   })
 })
 
