@@ -127,19 +127,20 @@ export default function Home() {
 
       {/* ── Footer ── */}
       <footer className="border-t bg-white py-8">
-        <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 px-4 text-sm text-muted-foreground sm:flex-row sm:px-6">
-          <p>Revenue Recovery Engine &copy; {new Date().getFullYear()}</p>
-          <div className="flex items-center gap-6">
-            {/* Pilot link in footer — always visible */}
-            <Link href="/pilot" className="font-medium text-blue-700 hover:text-blue-900 underline">
-              30-Day Pilot — $500
-            </Link>
-            <Link href="/login" className="hover:text-zinc-900">
-              Sign in
-            </Link>
-            <a href="mailto:hello@revenuerecoveryengine.com" className="hover:text-zinc-900">
-              Contact
-            </a>
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <div className="flex flex-col items-center justify-between gap-4 text-sm text-muted-foreground sm:flex-row">
+            <p>© {new Date().getFullYear()} MedicalRouter. All rights reserved.</p>
+            <div className="flex flex-wrap items-center justify-center gap-5 text-xs">
+              <Link href="/pilot" className="font-medium text-blue-700 hover:text-blue-900 underline">
+                30-Day Pilot — $500
+              </Link>
+              <Link href="/faq" className="hover:text-zinc-900">FAQ</Link>
+              <Link href="/terms" className="hover:text-zinc-900">Terms of Use</Link>
+              <Link href="/privacy" className="hover:text-zinc-900">Privacy Policy</Link>
+              <Link href="/service-agreement" className="hover:text-zinc-900">Service Agreement</Link>
+              <Link href="/login" className="hover:text-zinc-900">Sign in</Link>
+              <a href="mailto:[CONTACT_EMAIL]" className="hover:text-zinc-900">Contact</a>
+            </div>
           </div>
         </div>
       </footer>

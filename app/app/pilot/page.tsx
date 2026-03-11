@@ -210,6 +210,18 @@ export default function PilotPage() {
               automated billing for this portion.
             </p>
           </div>
+
+          {/* Service agreement link */}
+          <div className="mt-5 rounded-lg border border-zinc-200 bg-zinc-50 px-5 py-4">
+            <p className="text-sm text-zinc-600">
+              By completing checkout, you agree to the commercial terms in the{' '}
+              <Link href="/service-agreement" className="font-medium text-blue-700 underline hover:text-blue-900">
+                MedicalRouter Pilot Services Agreement
+              </Link>
+              , including the non-refundable $500 setup fee, the 25% success fee on recovered amounts,
+              the 7-day payment obligation, and the 12-month recovery window.
+            </p>
+          </div>
         </div>
       </section>
 
@@ -296,13 +308,19 @@ export default function PilotPage() {
 
       {/* ── Footer ── */}
       <footer className="border-t bg-white px-4 py-8 sm:px-6">
-        <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 text-xs text-zinc-400 sm:flex-row">
-          <p>© {new Date().getFullYear()} Revenue Recovery Engine. All rights reserved.</p>
-          <div className="flex items-center gap-5">
-            <Link href="/" className="hover:text-zinc-600">Home</Link>
-            <Link href="/pilot" className="font-semibold text-blue-700 underline hover:text-blue-900">30-Day Pilot — $500</Link>
-            <Link href="/login" className="hover:text-zinc-600">Sign in</Link>
-            <a href="mailto:hello@revenuerecoveryengine.com" className="hover:text-zinc-600">Contact</a>
+        <div className="mx-auto max-w-5xl">
+          <div className="flex flex-col items-center justify-between gap-4 text-xs text-zinc-400 sm:flex-row">
+            <p>© {new Date().getFullYear()} MedicalRouter. All rights reserved.</p>
+            <div className="flex flex-wrap items-center justify-center gap-5">
+              <Link href="/" className="hover:text-zinc-600">Home</Link>
+              <Link href="/pilot" className="font-semibold text-blue-700 underline hover:text-blue-900">30-Day Pilot — $500</Link>
+              <Link href="/faq" className="hover:text-zinc-600">FAQ</Link>
+              <Link href="/terms" className="hover:text-zinc-600">Terms of Use</Link>
+              <Link href="/privacy" className="hover:text-zinc-600">Privacy Policy</Link>
+              <Link href="/service-agreement" className="hover:text-zinc-600">Service Agreement</Link>
+              <Link href="/login" className="hover:text-zinc-600">Sign in</Link>
+              <a href="mailto:[CONTACT_EMAIL]" className="hover:text-zinc-600">Contact</a>
+            </div>
           </div>
         </div>
       </footer>
