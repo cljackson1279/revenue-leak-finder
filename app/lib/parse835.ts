@@ -6,6 +6,8 @@
  * Output: normalized Claim[] and ServiceLine[] objects.
  */
 
+import { carcToDenialCategory as _carcToDenialCategory, DenialCategory as _DenialCategory, CARC_CATEGORY_MAP } from './carcCategories'
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export type Adjustment = {
@@ -263,15 +265,9 @@ export function parse835(ediText: string): ParsedERA {
 
 // ─── Finding computation engine ─────────────────────────────────────────────
 
-export type DenialCategory =
-  | 'medical_necessity'
-  | 'timely_filing'
-  | 'bundling'
-  | 'missing_info'
-  | 'authorization'
-  | 'not_covered'
-  | 'duplicate_claim'
-  | 'other'
+// DenialCategory is defined in carcCategories.ts — the single source of truth.
+// Re-exported here for backward compatibility with existing imports.
+export type DenialCategory = _DenialCategory
 
 export type AppealStatus =
   | 'not_filed'
@@ -347,28 +343,11 @@ const DENIAL_CARCS = new Set([
 ])
 
 /**
- * Map a CARC code to a denial category for display and filtering.
- * Based on the X12 CARC code definitions and common denial patterns.
+ * Map a CARC code to a denial category.
+ * Delegates to the canonical shared mapping in carcCategories.ts.
+ * That module is the single source of truth — edit it, not this function.
  */
-export function carcToDenialCategory(carcCode: string): DenialCategory {
-  const code = carcCode.trim()
-  // Medical necessity
-  if (['39', '50', '55', '56', '167', '197'].includes(code)) return 'medical_necessity'
-  // Timely filing
-  if (['29'].includes(code)) return 'timely_filing'
-  // Bundling / included in another service
-  if (['59', '97', '181', '182', '183', '184', '185', '186', '187', '188', '189'].includes(code)) return 'bundling'
-  // Missing information / billing errors
-  if (['4', '5', '16', '107', '125', '146', '147', '148', '149', '150', '151', '152'].includes(code)) return 'missing_info'
-  // Authorization / precertification
-  if (['15', '197'].includes(code)) return 'authorization'
-  // Not covered / benefit limit
-  if (['24', '26', '27', '35', '49', '96', '109', '119', '204'].includes(code)) return 'not_covered'
-  // Duplicate claim
-  if (['18'].includes(code)) return 'duplicate_claim'
-  // Default
-  return 'other'
-}
+export const carcToDenialCategory = _carcToDenialCategory
 
 /**
  * Compute findings from parsed 835 claims.

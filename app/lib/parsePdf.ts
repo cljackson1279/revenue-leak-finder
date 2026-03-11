@@ -14,6 +14,7 @@
  */
 
 import type { FindingInput } from './parse835'
+import { carcToDenialCategory } from './carcCategories'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -861,17 +862,10 @@ export function pdfToFindings(
         ? `Denial reason: ${denialReasons.join(', ')}.`
         : 'Review adjustment codes for denial reason.'
 
-      // Map CARC codes to denial category
+      // Map CARC codes to denial category using the canonical shared mapping.
+      // carcToDenialCategory is the single source of truth — no inline maps here.
       const primaryCarc = carcCodes[0] || ''
-      const denialCategoryMap: Record<string, string> = {
-        '50': 'medical_necessity', '39': 'medical_necessity', '55': 'medical_necessity', '167': 'medical_necessity', '197': 'authorization',
-        '29': 'timely_filing',
-        '97': 'bundling', '59': 'bundling',
-        '16': 'missing_info', '4': 'missing_info', '5': 'missing_info', '125': 'missing_info',
-        '96': 'not_covered', '49': 'not_covered', '109': 'not_covered', '119': 'not_covered', '204': 'not_covered',
-        '18': 'duplicate_claim',
-      }
-      const denialCat = (denialCategoryMap[primaryCarc] || 'other') as import('./parse835').DenialCategory
+      const denialCat = carcToDenialCategory(primaryCarc)
       const deadlineDays = denialCat === 'timely_filing' ? 180 : 90
       findings.push({
         finding_type: 'DENIED_APPEALABLE',
