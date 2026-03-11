@@ -26,6 +26,9 @@ export default function Home() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
           <h1 className="text-xl font-semibold tracking-tight">Revenue Recovery Engine</h1>
           <div className="flex gap-4">
+            <Link href="/pilot">
+              <Button variant="ghost">Start a Pilot</Button>
+            </Link>
             <Link href="/login">
               <Button variant="outline">Sign in</Button>
             </Link>
