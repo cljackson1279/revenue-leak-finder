@@ -214,39 +214,48 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // Get the authenticated user from the session cookie
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    const authHeader = req.headers.get('authorization') || ''
-    const cookieHeader = req.headers.get('cookie') || ''
-
-    // Use service client to get user from the request
+    // Authenticate via the Bearer token sent in the Authorization header
+    // (Next.js App Router API routes cannot reliably read Supabase auth cookies server-side)
     const serviceClient = getServiceClient()
 
-    // Parse the access token from the cookie
-    const accessTokenMatch = cookieHeader.match(/sb-[^-]+-auth-token=([^;]+)/)
+    const authHeader = req.headers.get('authorization') || ''
+    const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null
+
     let userId: string | null = null
     let userEmail: string | null = null
 
-    // Try to get user via the auth header or by creating a user-scoped client
-    const { createServerClient } = await import('@supabase/ssr')
-    const { cookies } = await import('next/headers')
-    const cookieStore = await cookies()
-
-    const userClient = createServerClient(supabaseUrl, supabaseAnonKey, {
-      cookies: {
-        getAll() { return cookieStore.getAll() },
-        setAll() {},
-      },
-    })
-
-    const { data: { user } } = await userClient.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    if (bearerToken) {
+      // Validate the token via the service client
+      const { data: { user }, error: userError } = await serviceClient.auth.getUser(bearerToken)
+      if (!user || userError) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+      }
+      userId = user.id
+      userEmail = user.email || null
+    } else {
+      // Fallback: try reading from cookies via @supabase/ssr
+      try {
+        const { createServerClient } = await import('@supabase/ssr')
+        const { cookies } = await import('next/headers')
+        const cookieStore = await cookies()
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        const userClient = createServerClient(supabaseUrl, supabaseAnonKey, {
+          cookies: {
+            getAll() { return cookieStore.getAll() },
+            setAll() {},
+          },
+        })
+        const { data: { user } } = await userClient.auth.getUser()
+        if (!user) {
+          return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+        }
+        userId = user.id
+        userEmail = user.email || null
+      } catch {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+      }
     }
-
-    userId = user.id
-    userEmail = user.email || null
 
     // Check for duplicate submission
     const { data: existing } = await serviceClient

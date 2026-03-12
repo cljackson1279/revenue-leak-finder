@@ -172,9 +172,17 @@ export default function SignAgreementPage() {
       // Get base64 PNG of signature
       const signatureImage = sigRef.current.getTrimmedCanvas().toDataURL('image/png')
 
+      // Get the current session access token to send in the Authorization header
+      // (Next.js App Router API routes cannot reliably read Supabase cookies server-side)
+      const { data: { session: currentSession } } = await supabase.auth.getSession()
+      const accessToken = currentSession?.access_token || ''
+
       const res = await fetch('/api/agreements/submit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}),
+        },
         body: JSON.stringify({
           fullName: fullName.trim(),
           title: title.trim(),
