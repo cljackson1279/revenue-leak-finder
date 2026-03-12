@@ -68,26 +68,36 @@ function AgreementModal({
   agreementId: string
   onClose: () => void
 }) {
+  const supabase = getSupabase()
   const [detail, setDetail] = useState<AgreementDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
 
   useEffect(() => {
-    fetch(`/api/agreements/${agreementId}`)
-      .then(r => r.json())
-      .then(d => {
-        if (d.error) setError(d.error)
-        else setDetail(d.agreement)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const token = session?.access_token || ''
+      fetch(`/api/agreements/${agreementId}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
       })
-      .catch(() => setError('Failed to load agreement'))
-      .finally(() => setLoading(false))
+        .then(r => r.json())
+        .then(d => {
+          if (d.error) setError(d.error)
+          else setDetail(d.agreement)
+        })
+        .catch(() => setError('Failed to load agreement'))
+        .finally(() => setLoading(false))
+    })
   }, [agreementId])
 
   const handleDownload = async () => {
     setDownloading(true)
     try {
-      const res = await fetch(`/api/agreements/${agreementId}/pdf?action=download`)
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token || ''
+      const res = await fetch(`/api/agreements/${agreementId}/pdf?action=download`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      })
       if (!res.ok) throw new Error('PDF generation failed')
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
@@ -303,7 +313,9 @@ export default function AdminPage() {
         if (adminFlag) {
           setAgreementsLoading(true)
           try {
-            const res = await fetch('/api/agreements/list')
+            const res = await fetch('/api/agreements/list', {
+              headers: { 'Authorization': `Bearer ${session.access_token}` },
+            })
             const data = await res.json()
             if (data.error) setAgreementsError(data.error)
             else setAgreements(data.agreements || [])
@@ -506,7 +518,11 @@ export default function AdminPage() {
                                 variant="outline"
                                 className="h-7 px-3 text-xs"
                                 onClick={async () => {
-                                  const res = await fetch(`/api/agreements/${a.id}/pdf?action=download`)
+                                  const { data: { session: dlSession } } = await supabase.auth.getSession()
+                                  const dlToken = dlSession?.access_token || ''
+                                  const res = await fetch(`/api/agreements/${a.id}/pdf?action=download`, {
+                                    headers: { 'Authorization': `Bearer ${dlToken}` },
+                                  })
                                   if (!res.ok) { alert('PDF generation failed'); return }
                                   const blob = await res.blob()
                                   const url = URL.createObjectURL(blob)

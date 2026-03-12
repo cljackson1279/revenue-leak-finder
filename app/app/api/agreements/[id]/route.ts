@@ -1,7 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
+
+function getServiceClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false } }
+  )
+}
+
+async function getUserIdFromRequest(req: NextRequest): Promise<string | null> {
+  const serviceClient = getServiceClient()
+
+  const authHeader = req.headers.get('authorization') || ''
+  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null
+  if (bearerToken) {
+    const { data: { user }, error } = await serviceClient.auth.getUser(bearerToken)
+    if (user && !error) return user.id
+  }
+
+  try {
+    const { createServerClient } = await import('@supabase/ssr')
+    const { cookies } = await import('next/headers')
+    const cookieStore = await cookies()
+    const userClient = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
+    )
+    const { data: { user } } = await userClient.auth.getUser()
+    if (user) return user.id
+  } catch { /* ignore */ }
+
+  return null
+}
 
 export async function GET(
   req: NextRequest,
@@ -9,33 +41,18 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-
-    const cookieStore = await cookies()
-    const userClient = createServerClient(supabaseUrl, supabaseAnonKey, {
-      cookies: {
-        getAll() { return cookieStore.getAll() },
-        setAll() {},
-      },
-    })
-
-    const { data: { user } } = await userClient.auth.getUser()
-    if (!user) {
+    const userId = await getUserIdFromRequest(req)
+    if (!userId) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
 
-    const serviceClient = createClient(
-      supabaseUrl,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { persistSession: false } }
-    )
+    const serviceClient = getServiceClient()
 
     // Check admin role
     const { data: accountUser } = await serviceClient
       .from('account_users')
       .select('role')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .maybeSingle()
 
     if (!accountUser || accountUser.role !== 'admin') {
@@ -58,7 +75,7 @@ export async function GET(
       .from('agreement_audit_log')
       .insert({
         agreement_id: id,
-        admin_id: user.id,
+        admin_id: userId,
         action: req.nextUrl.searchParams.get('action') || 'view',
       })
 
