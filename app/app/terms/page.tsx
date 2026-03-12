@@ -141,7 +141,7 @@ export default function TermsPage() {
 
           <section>
             <h2 className="mb-3 text-lg font-semibold text-zinc-900">21. Contact</h2>
-            <p>Questions about these Terms may be directed through the contact information provided on the site: <a href="mailto:[CONTACT_EMAIL]" className="text-blue-700 underline hover:text-blue-900">[CONTACT_EMAIL]</a>.</p>
+            <p>Questions about these Terms may be directed through the contact information provided on the site: <a href="mailto:support@medicalrouter.com" className="text-blue-700 underline hover:text-blue-900">support@medicalrouter.com</a>.</p>
           </section>
 
         </div>

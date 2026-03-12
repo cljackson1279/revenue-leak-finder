@@ -37,10 +37,10 @@ export default function PilotSuccessPage() {
             follow up within one business day to get your 835 ERA or EOB files and begin
             the analysis. If you have questions in the meantime, email us at{' '}
             <a
-              href="mailto:[CONTACT_EMAIL]"
+              href="mailto:support@medicalrouter.com"
               className="text-blue-700 underline hover:text-blue-900"
             >
-              [CONTACT_EMAIL]
+              support@medicalrouter.com
             </a>
             .
           </p>

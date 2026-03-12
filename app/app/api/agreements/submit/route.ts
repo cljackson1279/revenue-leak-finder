@@ -194,7 +194,7 @@ async function sendAgreementEmail(params: {
 <p>Thank you for signing the MedicalRouter Service Agreement on behalf of <strong>${params.practiceName}</strong>.</p>
 <p>A PDF copy of your signed agreement is attached to this email for your records.</p>
 <p>Signed: ${params.agreedAt}</p>
-<p>If you have any questions, please contact us at <a href="mailto:[CONTACT_EMAIL]">[CONTACT_EMAIL]</a>.</p>
+<p>If you have any questions, please contact us at <a href="mailto:support@medicalrouter.com">support@medicalrouter.com</a>.</p>
 <p>— The MedicalRouter Team</p>`,
     attachments: [
       {

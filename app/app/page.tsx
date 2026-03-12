@@ -151,7 +151,7 @@ export default function Home() {
               <Link href="/privacy" className="hover:text-zinc-900">Privacy Policy</Link>
               <Link href="/service-agreement" className="hover:text-zinc-900">Service Agreement</Link>
               <Link href="/login" className="hover:text-zinc-900">Sign in</Link>
-              <a href="mailto:[CONTACT_EMAIL]" className="hover:text-zinc-900">Contact</a>
+              <a href="mailto:support@medicalrouter.com" className="hover:text-zinc-900">Contact</a>
             </div>
           </div>
         </div>

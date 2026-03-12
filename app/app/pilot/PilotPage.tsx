@@ -154,7 +154,7 @@ export default function PilotPage() {
           </p>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <StartPilotButton />
-            <a href="mailto:[CONTACT_EMAIL]">
+            <a href="mailto:support@medicalrouter.com">
               <Button variant="outline" size="lg" className="w-full sm:w-auto">
                 Contact Us
               </Button>
@@ -302,7 +302,7 @@ export default function PilotPage() {
           </p>
           <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
             <StartPilotButton />
-            <a href="mailto:[CONTACT_EMAIL]">
+            <a href="mailto:support@medicalrouter.com">
               <Button
                 variant="outline"
                 size="lg"
@@ -328,7 +328,7 @@ export default function PilotPage() {
               <Link href="/privacy" className="hover:text-zinc-600">Privacy Policy</Link>
               <Link href="/service-agreement" className="hover:text-zinc-600">Service Agreement</Link>
               <Link href="/login" className="hover:text-zinc-600">Sign in</Link>
-              <a href="mailto:[CONTACT_EMAIL]" className="hover:text-zinc-600">Contact</a>
+              <a href="mailto:support@medicalrouter.com" className="hover:text-zinc-600">Contact</a>
             </div>
           </div>
         </div>
