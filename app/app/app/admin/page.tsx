@@ -1,4 +1,5 @@
 'use client'
+
 import { useEffect, useState } from 'react'
 import { getSupabase } from '@/lib/supabase'
 import { Card } from '@/components/ui/card'
@@ -8,6 +9,8 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 type AccountUser = {
   user_id: string
@@ -39,6 +42,157 @@ type FindingStats = {
   totalRecovery: number
 }
 
+type AgreementRow = {
+  id: string
+  full_name: string
+  title: string
+  practice_name: string
+  agreed_at: string
+  ip_address: string | null
+  agreement_version: string
+  pdf_sent: boolean
+  client_id: string
+  account_id: string
+}
+
+type AgreementDetail = AgreementRow & {
+  signature_image: string
+}
+
+// ─── Agreement View Modal ────────────────────────────────────────────────────
+
+function AgreementModal({
+  agreementId,
+  onClose,
+}: {
+  agreementId: string
+  onClose: () => void
+}) {
+  const [detail, setDetail] = useState<AgreementDetail | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [downloading, setDownloading] = useState(false)
+
+  useEffect(() => {
+    fetch(`/api/agreements/${agreementId}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.error) setError(d.error)
+        else setDetail(d.agreement)
+      })
+      .catch(() => setError('Failed to load agreement'))
+      .finally(() => setLoading(false))
+  }, [agreementId])
+
+  const handleDownload = async () => {
+    setDownloading(true)
+    try {
+      const res = await fetch(`/api/agreements/${agreementId}/pdf?action=download`)
+      if (!res.ok) throw new Error('PDF generation failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `MedicalRouter-Agreement-${detail?.practice_name?.replace(/\s+/g, '-') || agreementId.slice(0, 8)}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err: any) {
+      alert('PDF download failed: ' + err.message)
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white shadow-2xl">
+        {/* Modal header */}
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4">
+          <h2 className="text-lg font-semibold text-zinc-900">Signed Agreement</h2>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleDownload}
+              disabled={downloading || !detail}
+            >
+              {downloading ? 'Generating…' : 'Download PDF'}
+            </Button>
+            <button
+              onClick={onClose}
+              className="ml-2 rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <div className="px-6 py-5">
+          {loading && <p className="text-sm text-zinc-400">Loading…</p>}
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          {detail && (
+            <div className="space-y-5 text-sm text-zinc-700">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <p className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-zinc-400">Full Legal Name</p>
+                  <p className="font-medium text-zinc-900">{detail.full_name}</p>
+                </div>
+                <div>
+                  <p className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-zinc-400">Title / Role</p>
+                  <p className="font-medium text-zinc-900">{detail.title}</p>
+                </div>
+                <div>
+                  <p className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-zinc-400">Practice Legal Name</p>
+                  <p className="font-medium text-zinc-900">{detail.practice_name}</p>
+                </div>
+                <div>
+                  <p className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-zinc-400">Date Signed</p>
+                  <p className="font-medium text-zinc-900">
+                    {new Date(detail.agreed_at).toLocaleString('en-US', {
+                      year: 'numeric', month: 'long', day: 'numeric',
+                      hour: '2-digit', minute: '2-digit',
+                    })}
+                  </p>
+                </div>
+                <div>
+                  <p className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-zinc-400">IP Address</p>
+                  <p className="font-mono text-zinc-700">{detail.ip_address || '—'}</p>
+                </div>
+                <div>
+                  <p className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-zinc-400">Agreement Version</p>
+                  <p className="font-mono text-zinc-700">{detail.agreement_version}</p>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">Electronic Signature</p>
+                <div className="inline-block rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={detail.signature_image}
+                    alt="Electronic signature"
+                    className="max-h-28 max-w-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-lg bg-zinc-50 px-4 py-3 text-xs text-zinc-500">
+                This agreement was electronically signed via MedicalRouter. The signature above is a legally binding
+                electronic signature under applicable e-signature law. Agreement ID: <span className="font-mono">{detail.id}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Admin Page ─────────────────────────────────────────────────────────
+
 export default function AdminPage() {
   const supabase = getSupabase()
 
@@ -48,6 +202,7 @@ export default function AdminPage() {
   const [findingStats, setFindingStats] = useState<FindingStats | null>(null)
   const [userEmail, setUserEmail] = useState('')
   const [currentUserId, setCurrentUserId] = useState('')
+  const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -57,6 +212,15 @@ export default function AdminPage() {
   const [contactName, setContactName] = useState('')
   const [contactPhone, setContactPhone] = useState('')
   const [contactEmail, setContactEmail] = useState('')
+
+  // Agreements section state
+  const [agreements, setAgreements] = useState<AgreementRow[]>([])
+  const [agreementsLoading, setAgreementsLoading] = useState(false)
+  const [agreementsError, setAgreementsError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [viewingAgreementId, setViewingAgreementId] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -74,6 +238,9 @@ export default function AdminPage() {
           .single()
 
         if (!accountUser) { setLoading(false); return }
+
+        const adminFlag = accountUser.role === 'admin'
+        setIsAdmin(adminFlag)
 
         // Account details
         const { data: acct } = await supabase
@@ -131,6 +298,21 @@ export default function AdminPage() {
               .reduce((s, f) => s + (f.underpayment_amount || 0), 0),
           })
         }
+
+        // Load agreements if admin
+        if (adminFlag) {
+          setAgreementsLoading(true)
+          try {
+            const res = await fetch('/api/agreements/list')
+            const data = await res.json()
+            if (data.error) setAgreementsError(data.error)
+            else setAgreements(data.agreements || [])
+          } catch {
+            setAgreementsError('Failed to load agreements')
+          } finally {
+            setAgreementsLoading(false)
+          }
+        }
       } catch (err) {
         console.error('Admin load error:', err)
       } finally {
@@ -173,20 +355,34 @@ export default function AdminPage() {
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
 
+  // ── Agreements filtering ────────────────────────────────────────────────────
+  const filteredAgreements = agreements.filter(a => {
+    const q = searchQuery.toLowerCase()
+    const matchesSearch = !q ||
+      a.practice_name.toLowerCase().includes(q) ||
+      a.full_name.toLowerCase().includes(q)
+
+    const signedDate = new Date(a.agreed_at)
+    const matchesFrom = !dateFrom || signedDate >= new Date(dateFrom)
+    const matchesTo = !dateTo || signedDate <= new Date(dateTo + 'T23:59:59')
+
+    return matchesSearch && matchesFrom && matchesTo
+  })
+
   if (loading) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
         <p className="text-muted-foreground">Loading...</p>
       </div>
     )
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <div className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Practice settings, team members, and system information
+          Practice settings, team members, agreements, and system information
         </p>
       </div>
 
@@ -197,7 +393,151 @@ export default function AdminPage() {
       )}
 
       <div className="space-y-6">
-        {/* Practice Settings */}
+
+        {/* ── Agreements Section (admin only) ─────────────────────────────── */}
+        {isAdmin && (
+          <Card className="p-6">
+            <div className="mb-1 flex items-center justify-between">
+              <h2 className="text-lg font-medium">Signed Agreements</h2>
+              <Badge variant="secondary" className="text-sm">
+                {agreements.length} agreement{agreements.length !== 1 ? 's' : ''} signed
+              </Badge>
+            </div>
+            <p className="mb-4 text-xs text-muted-foreground">
+              All electronically signed service agreements. Only visible to admins.
+            </p>
+            <Separator className="mb-5" />
+
+            {/* Search + date filters */}
+            <div className="mb-4 flex flex-wrap gap-3">
+              <div className="min-w-[200px] flex-1">
+                <Input
+                  placeholder="Search by practice or signer name…"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="h-9 text-sm"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Label className="shrink-0 text-xs text-zinc-500">From</Label>
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={e => setDateFrom(e.target.value)}
+                  className="h-9 w-36 text-sm"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Label className="shrink-0 text-xs text-zinc-500">To</Label>
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={e => setDateTo(e.target.value)}
+                  className="h-9 w-36 text-sm"
+                />
+              </div>
+              {(searchQuery || dateFrom || dateTo) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setSearchQuery(''); setDateFrom(''); setDateTo('') }}
+                  className="h-9 text-xs text-zinc-400"
+                >
+                  Clear
+                </Button>
+              )}
+            </div>
+
+            {agreementsLoading && (
+              <p className="py-4 text-center text-sm text-zinc-400">Loading agreements…</p>
+            )}
+            {agreementsError && (
+              <Alert variant="destructive">
+                <AlertDescription>{agreementsError}</AlertDescription>
+              </Alert>
+            )}
+
+            {!agreementsLoading && !agreementsError && (
+              filteredAgreements.length === 0 ? (
+                <p className="py-6 text-center text-sm text-zinc-400">
+                  {agreements.length === 0 ? 'No agreements signed yet.' : 'No agreements match your filters.'}
+                </p>
+              ) : (
+                <div className="overflow-x-auto rounded-lg border border-zinc-200">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-zinc-50 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                        <th className="px-4 py-3">Practice Name</th>
+                        <th className="px-4 py-3">Signer Name</th>
+                        <th className="px-4 py-3">Title</th>
+                        <th className="px-4 py-3">Date Signed</th>
+                        <th className="px-4 py-3">IP Address</th>
+                        <th className="px-4 py-3">Version</th>
+                        <th className="px-4 py-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-100">
+                      {filteredAgreements.map(a => (
+                        <tr key={a.id} className="hover:bg-zinc-50">
+                          <td className="px-4 py-3 font-medium text-zinc-900">{a.practice_name}</td>
+                          <td className="px-4 py-3 text-zinc-700">{a.full_name}</td>
+                          <td className="px-4 py-3 text-zinc-500">{a.title}</td>
+                          <td className="px-4 py-3 text-zinc-500">
+                            {new Date(a.agreed_at).toLocaleDateString('en-US', {
+                              year: 'numeric', month: 'short', day: 'numeric',
+                            })}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-xs text-zinc-400">{a.ip_address || '—'}</td>
+                          <td className="px-4 py-3">
+                            <Badge variant="outline" className="text-xs">{a.agreement_version}</Badge>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-3 text-xs"
+                                onClick={() => setViewingAgreementId(a.id)}
+                              >
+                                View
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-3 text-xs"
+                                onClick={async () => {
+                                  const res = await fetch(`/api/agreements/${a.id}/pdf?action=download`)
+                                  if (!res.ok) { alert('PDF generation failed'); return }
+                                  const blob = await res.blob()
+                                  const url = URL.createObjectURL(blob)
+                                  const el = document.createElement('a')
+                                  el.href = url
+                                  el.download = `MedicalRouter-Agreement-${a.practice_name.replace(/\s+/g, '-')}.pdf`
+                                  el.click()
+                                  URL.revokeObjectURL(url)
+                                }}
+                              >
+                                Download PDF
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            )}
+
+            {filteredAgreements.length > 0 && filteredAgreements.length < agreements.length && (
+              <p className="mt-2 text-xs text-zinc-400">
+                Showing {filteredAgreements.length} of {agreements.length} agreements
+              </p>
+            )}
+          </Card>
+        )}
+
+        {/* ── Practice Settings ────────────────────────────────────────────── */}
         <Card className="p-6">
           <h2 className="mb-1 text-lg font-medium">Practice Settings</h2>
           <p className="mb-4 text-xs text-muted-foreground">
@@ -261,7 +601,7 @@ export default function AdminPage() {
           </div>
         </Card>
 
-        {/* Team Members */}
+        {/* ── Team Members ─────────────────────────────────────────────────── */}
         <Card className="p-6">
           <h2 className="mb-1 text-lg font-medium">Team Members</h2>
           <p className="mb-4 text-xs text-muted-foreground">
@@ -303,7 +643,7 @@ export default function AdminPage() {
           </p>
         </Card>
 
-        {/* Upload Stats */}
+        {/* ── Upload Stats ─────────────────────────────────────────────────── */}
         {uploadStats && (
           <Card className="p-6">
             <h2 className="mb-4 text-lg font-medium">Upload Statistics</h2>
@@ -329,7 +669,7 @@ export default function AdminPage() {
           </Card>
         )}
 
-        {/* Finding Stats */}
+        {/* ── Finding Stats ─────────────────────────────────────────────────── */}
         {findingStats && (
           <Card className="p-6">
             <h2 className="mb-4 text-lg font-medium">Finding Statistics</h2>
@@ -372,7 +712,7 @@ export default function AdminPage() {
           </Card>
         )}
 
-        {/* System Info */}
+        {/* ── System Info ──────────────────────────────────────────────────── */}
         <Card className="p-6">
           <h2 className="mb-4 text-lg font-medium">System Information</h2>
           <Separator className="mb-4" />
@@ -400,7 +740,7 @@ export default function AdminPage() {
           </div>
         </Card>
 
-        {/* Session */}
+        {/* ── Session ──────────────────────────────────────────────────────── */}
         <Card className="p-6">
           <h2 className="mb-4 text-lg font-medium">Session</h2>
           <Separator className="mb-4" />
@@ -428,6 +768,14 @@ export default function AdminPage() {
           </div>
         </Card>
       </div>
+
+      {/* ── Agreement View Modal ─────────────────────────────────────────── */}
+      {viewingAgreementId && (
+        <AgreementModal
+          agreementId={viewingAgreementId}
+          onClose={() => setViewingAgreementId(null)}
+        />
+      )}
     </div>
   )
 }

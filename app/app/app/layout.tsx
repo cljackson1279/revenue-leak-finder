@@ -7,6 +7,9 @@ import { getSupabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import type { User } from '@supabase/supabase-js'
 
+// Routes that are exempt from the agreement gate (the sign page itself)
+const AGREEMENT_EXEMPT_PATHS = ['/app/sign-agreement']
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = getSupabase()
   const router = useRouter()
@@ -19,14 +22,35 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         router.push('/login')
-      } else {
-        setUser(user)
+        return
       }
+
+      setUser(user)
+
+      // ── Agreement gate ──────────────────────────────────────────────────────
+      // Skip the check if we are already on the sign-agreement page
+      const isExempt = AGREEMENT_EXEMPT_PATHS.some(p => pathname.startsWith(p))
+      if (!isExempt) {
+        try {
+          const res = await fetch('/api/agreements/check')
+          const data = await res.json()
+          if (!data.signed) {
+            router.push('/app/sign-agreement')
+            return
+          }
+        } catch {
+          // If the check fails (network error, etc.) let the user through
+          // rather than blocking them indefinitely
+          console.warn('[layout] Agreement check failed — allowing access')
+        }
+      }
+      // ───────────────────────────────────────────────────────────────────────
+
       setLoading(false)
     }
 
     checkUser()
-  }, [router])
+  }, [router, pathname])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -43,6 +67,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (!user) return null
 
+  // Hide the main nav on the sign-agreement page (clean, focused experience)
+  const isSignPage = AGREEMENT_EXEMPT_PATHS.some(p => pathname.startsWith(p))
+  if (isSignPage) {
+    return (
+      <div className="min-h-screen bg-zinc-50">
+        <nav className="border-b bg-white px-4 py-4 sm:px-6">
+          <div className="mx-auto flex max-w-3xl items-center justify-between">
+            <span className="text-xl font-semibold tracking-tight text-zinc-900">MedicalRouter</span>
+            <Button variant="outline" size="sm" onClick={handleLogout}>Sign out</Button>
+          </div>
+        </nav>
+        <main>{children}</main>
+      </div>
+    )
+  }
+
   const navItems = [
     { href: '/app/dashboard', label: 'Dashboard' },
     { href: '/app/upload', label: 'Uploads' },
@@ -58,7 +98,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Link href="/app/dashboard" className="text-xl font-semibold tracking-tight">
               MedicalRouter
             </Link>
-            <div className="flex gap-6">
+            <div className="hidden gap-6 sm:flex">
               {navItems.map(item => (
                 <Link
                   key={item.href}
@@ -75,7 +115,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">{user.email}</span>
+            <span className="hidden text-sm text-muted-foreground sm:block">{user.email}</span>
             <Button variant="outline" size="sm" onClick={handleLogout}>
               Sign out
             </Button>
