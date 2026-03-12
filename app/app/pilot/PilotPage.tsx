@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { CheckCircle, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -114,8 +115,16 @@ export default function PilotPage() {
       {/* ── Nav ── */}
       <nav className="border-b bg-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 sm:px-6">
-          <Link href="/" className="text-base font-semibold tracking-tight text-zinc-900">
-            MedicalRouter
+          <Link href="/" className="flex items-center gap-2.5">
+            <Image
+              src="/icon-192x192.png"
+              alt="MedicalRouter logo"
+              width={36}
+              height={36}
+              className="rounded-lg"
+              priority
+            />
+            <span className="text-base font-semibold tracking-tight text-zinc-900">MedicalRouter</span>
           </Link>
           <div className="flex items-center gap-3">
             {/* Current page indicator */}

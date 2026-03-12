@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { getSupabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import type { User } from '@supabase/supabase-js'
@@ -109,7 +110,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen bg-zinc-50">
         <nav className="border-b bg-white px-4 py-4 sm:px-6">
           <div className="mx-auto flex max-w-3xl items-center justify-between">
-            <span className="text-xl font-semibold tracking-tight text-zinc-900">MedicalRouter</span>
+            <div className="flex items-center gap-2.5">
+              <Image src="/icon-192x192.png" alt="MedicalRouter" width={36} height={36} className="rounded-lg" />
+              <span className="text-xl font-semibold tracking-tight text-zinc-900">MedicalRouter</span>
+            </div>
             <Button variant="outline" size="sm" onClick={handleLogout}>Sign out</Button>
           </div>
         </nav>
@@ -130,8 +134,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <nav className="border-b bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
           <div className="flex items-center gap-8">
-            <Link href="/app/dashboard" className="text-xl font-semibold tracking-tight">
-              MedicalRouter
+            <Link href="/app/dashboard" className="flex items-center gap-2.5">
+              <Image src="/icon-192x192.png" alt="MedicalRouter" width={36} height={36} className="rounded-lg" />
+              <span className="text-xl font-semibold tracking-tight">MedicalRouter</span>
             </Link>
             <div className="hidden gap-6 sm:flex">
               {navItems.map(item => (

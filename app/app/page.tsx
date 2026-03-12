@@ -2,6 +2,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { getSupabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -27,7 +28,17 @@ export default function Home() {
       {/* ── Header nav ── */}
       <nav className="border-b bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-          <h1 className="text-xl font-semibold tracking-tight">MedicalRouter</h1>
+          <Link href="/" className="flex items-center gap-2.5">
+            <Image
+              src="/icon-192x192.png"
+              alt="MedicalRouter logo"
+              width={36}
+              height={36}
+              className="rounded-lg"
+              priority
+            />
+            <span className="text-xl font-semibold tracking-tight">MedicalRouter</span>
+          </Link>
           <div className="flex items-center gap-3">
             {/* Prominent pilot link — solid blue, visible at a glance */}
             <Link href="/pilot">
