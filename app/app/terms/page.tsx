@@ -122,7 +122,7 @@ export default function TermsPage() {
 
           <section>
             <h2 className="mb-3 text-lg font-semibold text-zinc-900">19. Governing Law</h2>
-            <p>These Terms shall be governed by and construed in accordance with the laws of the state specified in your applicable agreement with MedicalRouter, without regard to conflict of law principles. <span className="rounded bg-yellow-100 px-1 text-yellow-800 font-medium">[GOVERNING STATE — PLACEHOLDER]</span></p>
+            <p>These Terms shall be governed by and construed in accordance with the laws of the state in which the Client&apos;s principal place of business is located, or, if the parties cannot agree, the State of Delaware, without regard to conflict of law principles.</p>
           </section>
 
           <section>

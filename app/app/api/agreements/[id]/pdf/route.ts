@@ -69,7 +69,7 @@ TO THE MAXIMUM EXTENT PERMITTED BY LAW, MEDICALROUTER'S TOTAL LIABILITY UNDER TH
 
 11. GOVERNING LAW
 
-This Agreement shall be governed by and construed in accordance with the laws of [GOVERNING STATE — PLACEHOLDER], without regard to conflict of law principles.
+This Agreement shall be governed by and construed in accordance with the laws of the state in which the Client's principal place of business is located, or, if the parties cannot agree, the State of Delaware, without regard to conflict of law principles.
 
 12. ENTIRE AGREEMENT
 

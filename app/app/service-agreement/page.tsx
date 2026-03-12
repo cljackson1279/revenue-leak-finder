@@ -120,7 +120,7 @@ export default function ServiceAgreementPage() {
 
           <section>
             <h2 className="mb-3 text-lg font-semibold text-zinc-900">11. Governing Law</h2>
-            <p>This Agreement shall be governed by and construed in accordance with the laws of <span className="rounded bg-yellow-100 px-1 text-yellow-800 font-medium">[GOVERNING STATE — PLACEHOLDER]</span>, without regard to conflict of law principles.</p>
+            <p>This Agreement shall be governed by and construed in accordance with the laws of <span className="rounded bg-yellow-100 px-1 text-yellow-800 font-medium">the state in which the Client's principal place of business is located, or, if the parties cannot agree, the State of Delaware</span>, without regard to conflict of law principles.</p>
           </section>
 
           <section>
