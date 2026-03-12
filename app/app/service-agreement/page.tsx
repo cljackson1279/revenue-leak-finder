@@ -1,8 +1,17 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 
-export const metadata = {
-  title: 'MedicalRouter Pilot Services Agreement',
-  description: 'MedicalRouter Pilot Services Agreement — commercial terms governing the 30-day pilot engagement.',
+export const metadata: Metadata = {
+  title: 'Pilot Services Agreement — MedicalRouter',
+  description:
+    'MedicalRouter Pilot Services Agreement: commercial terms for the 30-day denied and underpaid claims recovery pilot. Covers the $500 onboarding fee, 25% success fee, 12-month recovery window, and client obligations.',
+  alternates: { canonical: 'https://medicalrouter.com/service-agreement' },
+  openGraph: {
+    url: 'https://medicalrouter.com/service-agreement',
+    title: 'Pilot Services Agreement — MedicalRouter',
+    description: 'Commercial terms for the MedicalRouter 30-day claims recovery pilot.',
+  },
+  robots: { index: false, follow: false },
 }
 
 export default function ServiceAgreementPage() {

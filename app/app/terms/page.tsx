@@ -1,8 +1,17 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 
-export const metadata = {
+export const metadata: Metadata = {
   title: 'Terms of Use — MedicalRouter',
-  description: 'Terms of Use governing access to and use of the MedicalRouter platform.',
+  description:
+    'Terms of Use governing your access to and use of the MedicalRouter denied and underpaid claims recovery platform. Includes liability, confidentiality, and payment terms.',
+  alternates: { canonical: 'https://medicalrouter.com/terms' },
+  openGraph: {
+    url: 'https://medicalrouter.com/terms',
+    title: 'Terms of Use — MedicalRouter',
+    description: 'Terms of Use for the MedicalRouter platform.',
+  },
+  robots: { index: true, follow: false },
 }
 
 export default function TermsPage() {

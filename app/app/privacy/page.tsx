@@ -1,8 +1,17 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 
-export const metadata = {
+export const metadata: Metadata = {
   title: 'Privacy Policy — MedicalRouter',
-  description: 'Privacy Policy for the MedicalRouter platform.',
+  description:
+    'MedicalRouter Privacy Policy: how we collect, use, and protect your data. We do not sell personal information. Learn how your uploaded billing documents are handled.',
+  alternates: { canonical: 'https://medicalrouter.com/privacy' },
+  openGraph: {
+    url: 'https://medicalrouter.com/privacy',
+    title: 'Privacy Policy — MedicalRouter',
+    description: 'How MedicalRouter collects, uses, and protects your data.',
+  },
+  robots: { index: true, follow: false },
 }
 
 export default function PrivacyPage() {
