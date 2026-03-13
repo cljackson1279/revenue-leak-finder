@@ -118,7 +118,7 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="mb-3 text-lg font-semibold text-zinc-900">14. Contact</h2>
-            <p>If you have questions about this Privacy Policy or your data, you may contact MedicalRouter using the contact information provided on the site: <a href="mailto:support@medicalrouter.com" className="text-blue-700 underline hover:text-blue-900">support@medicalrouter.com</a>.</p>
+            <p>If you have questions about this Privacy Policy or your data, you may contact MedicalRouter using the contact information provided on the site: <a href="mailto:chris@medicalrouter.com" className="text-blue-700 underline hover:text-blue-900">chris@medicalrouter.com</a>.</p>
           </section>
 
         </div>

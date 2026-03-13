@@ -116,7 +116,7 @@ export default function FaqPage() {
         <div className="mt-10 rounded-lg border border-blue-100 bg-blue-50 px-6 py-5">
           <p className="text-sm text-blue-800">
             Have a question not answered here?{' '}
-            <a href="mailto:support@medicalrouter.com" className="font-medium underline hover:text-blue-900">
+            <a href="mailto:chris@medicalrouter.com" className="font-medium underline hover:text-blue-900">
               Contact us
             </a>
             {' '}and we will get back to you promptly.

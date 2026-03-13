@@ -187,14 +187,14 @@ async function sendAgreementEmail(params: {
   const resend = new Resend(resendKey)
 
   await resend.emails.send({
-    from: process.env.RESEND_FROM_EMAIL || 'noreply@medicalrouter.com',
+    from: process.env.RESEND_FROM_EMAIL || 'chris@medicalrouter.com',
     to: params.toEmail,
     subject: 'Your MedicalRouter Service Agreement — Signed Copy',
     html: `<p>Hi ${params.fullName},</p>
 <p>Thank you for signing the MedicalRouter Service Agreement on behalf of <strong>${params.practiceName}</strong>.</p>
 <p>A PDF copy of your signed agreement is attached to this email for your records.</p>
 <p>Signed: ${params.agreedAt}</p>
-<p>If you have any questions, please contact us at <a href="mailto:support@medicalrouter.com">support@medicalrouter.com</a>.</p>
+<p>If you have any questions, please contact us at <a href="mailto:chris@medicalrouter.com">chris@medicalrouter.com</a>.</p>
 <p>— The MedicalRouter Team</p>`,
     attachments: [
       {

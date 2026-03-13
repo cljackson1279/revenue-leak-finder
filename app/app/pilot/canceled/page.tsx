@@ -36,10 +36,10 @@ export default function PilotCanceledPage() {
             If you have questions about the pilot offer or want to talk through whether it is
             right for your practice, email us at{' '}
             <a
-              href="mailto:support@medicalrouter.com"
+              href="mailto:chris@medicalrouter.com"
               className="text-blue-700 underline hover:text-blue-900"
             >
-              support@medicalrouter.com
+              chris@medicalrouter.com
             </a>{' '}
             or book a demo.
           </p>
@@ -49,7 +49,7 @@ export default function PilotCanceledPage() {
                 Return to pilot page
               </Button>
             </Link>
-            <a href="mailto:support@medicalrouter.com">
+            <a href="mailto:chris@medicalrouter.com">
               <Button variant="outline" className="w-full sm:w-auto">
                 Contact us
               </Button>
