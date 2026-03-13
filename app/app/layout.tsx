@@ -77,21 +77,11 @@ export const metadata: Metadata = {
   alternates: {
     canonical: SITE_URL,
   },
-  icons: {
-    icon: [
-      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
-      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
-      { url: '/favicon-48x48.png', sizes: '48x48', type: 'image/png' },
-      { url: '/favicon-96x96.png', sizes: '96x96', type: 'image/png' },
-      { url: '/favicon.ico', sizes: 'any' },
-    ],
-    apple: [
-      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
-    ],
-    other: [
-      { rel: 'mask-icon', url: '/icon-192x192.png' },
-    ],
-  },
+  // Icons are served via Next.js App Router special files:
+  //   app/favicon.ico  → browser tab favicon (16/32/48px multi-size ICO)
+  //   app/icon.png     → 512x512 PNG icon
+  //   app/apple-icon.png → 180x180 Apple touch icon
+  // These files auto-generate the correct <link> tags — no manual icons config needed.
   manifest: '/manifest.json',
 }
 
@@ -129,14 +119,17 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        <link rel="icon" href="/favicon.ico" sizes="any" />
+        {/* Favicon: served via app/favicon.ico, app/icon.png, app/apple-icon.png (Next.js App Router special files) */}
+        {/* Explicit fallback links for maximum browser compatibility */}
+        <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" type="image/x-icon" />
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
         <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+        <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png" />
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#2563eb" />
         <meta name="msapplication-TileColor" content="#2563eb" />
-        <meta name="msapplication-TileImage" content="/icon-192x192.png" />
+        <meta name="msapplication-TileImage" content="/android-chrome-192x192.png" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         {children}
