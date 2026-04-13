@@ -30,7 +30,7 @@ const FAQS = [
   },
   {
     q: 'Do you handle denied claims as well as underpayments?',
-    a: 'Yes. The engine identifies underpayments (payer paid less than the contracted allowed amount) and appealable denials (reason codes that are typically reversible — CO-50, CO-29, CO-97, timely filing, bundling errors, and others). Each finding includes the CARC/RARC codes and a draft appeal letter.',
+    a: 'Yes. The engine identifies underpayments (payer paid less than the contracted allowed amount) and appealable denials — CO-50 (medical necessity), CO-29 (timely filing), CO-97 (bundling), CO-4 (modifier), CO-16 (missing information), and others. Each finding includes the CARC code, the math, and a draft appeal letter.',
   },
   {
     q: 'Is there a long-term contract?',
@@ -241,7 +241,10 @@ export default function Home() {
           </div>
 
           <p className="mt-5 text-sm text-zinc-500">
-            Each finding includes the math, the payer reason code, and a draft appeal letter ready to download.
+            Each finding includes the math, the payer reason code, and a draft appeal letter ready to download.{' '}
+            <Link href="/denied-claims-recovery" className="underline hover:text-zinc-700">
+              How denied claims recovery works →
+            </Link>
           </p>
         </div>
       </section>
@@ -264,7 +267,7 @@ export default function Home() {
                 icon: <BarChart2 className="h-5 w-5 text-blue-600" />,
                 step: '2',
                 title: 'Claims are analyzed',
-                body: 'The engine parses each transaction and flags underpayments and appealable denied claims by CARC/RARC code.',
+                body: <>The engine parses each transaction and flags underpayments and <Link href="/denied-claims-recovery" className="underline hover:text-zinc-900">appealable denied claims</Link> by CARC/RARC code.</>,
               },
               {
                 icon: <CheckCircle className="h-5 w-5 text-blue-600" />,

@@ -38,7 +38,7 @@ const FAQS = [
   },
   {
     q: 'Are denied claims handled differently from underpayments?',
-    a: 'Yes. The platform distinguishes between underpayments and denied claims. Denied claims may be categorized separately and may include different workflows, deadlines, or recommendations depending on the available data.',
+    a: 'Yes. The platform distinguishes between underpayments and denied claims. Denied claims are classified by CARC reason code — CO-50 (medical necessity), CO-29 (timely filing), CO-97 (bundling), and others — and each appealable denial generates a type-specific appeal packet. Learn more at medicalrouter.com/denied-claims-recovery.',
   },
   {
     q: 'Is my data secure?',
