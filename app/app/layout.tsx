@@ -18,11 +18,11 @@ const OG_IMAGE = `${SITE_URL}/og-image.png`
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'MedicalRouter — AI-Powered Denied & Underpaid Claims Recovery',
+    default: 'MedicalRouter — Underpaid & Denied Claims Recovery for Medical Practices',
     template: '%s | MedicalRouter',
   },
   description:
-    'MedicalRouter uses AI to find underpaid and denied insurance claims your practice never appealed. Upload your 835 ERA or EOB. Free audit. You only pay when we recover your money.',
+    'MedicalRouter finds underpaid and denied claims in your 835 ERA and EOB files, calculates the net recoverable per claim, and generates ready-to-send appeal packets. $500 pilot. 25% success fee on recovered dollars only.',
   keywords: [
     'underpaid insurance claims',
     'denied claims recovery',
@@ -54,9 +54,9 @@ export const metadata: Metadata = {
     locale: 'en_US',
     url: SITE_URL,
     siteName: 'MedicalRouter',
-    title: 'MedicalRouter — AI-Powered Denied & Underpaid Claims Recovery',
+    title: 'MedicalRouter — Underpaid & Denied Claims Recovery for Medical Practices',
     description:
-      'Find underpaid and denied insurance claims your practice never appealed. Free audit. You only pay when we recover your money.',
+      'Find underpaid and denied claims in your 835 ERA and EOB files. Net recoverable calculated per claim. Ready-to-send appeal packets. $500 pilot, 25% success fee on recovered dollars only.',
     images: [
       {
         url: OG_IMAGE,
@@ -68,9 +68,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'MedicalRouter — AI-Powered Denied & Underpaid Claims Recovery',
+    title: 'MedicalRouter — Underpaid & Denied Claims Recovery for Medical Practices',
     description:
-      'Find underpaid and denied insurance claims your practice never appealed. Free audit. You only pay when we recover your money.',
+      'Find underpaid and denied claims in your 835 ERA and EOB files. Net recoverable per claim. Ready-to-send appeal packets. $500 pilot.',
     images: [OG_IMAGE],
     creator: '@medicalrouter',
   },
