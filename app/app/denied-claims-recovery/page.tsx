@@ -1,9 +1,8 @@
-'use client'
-import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
-import { CheckCircle, Lock, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react'
+import { CheckCircle, AlertCircle } from 'lucide-react'
+import { FaqItem } from './FaqItem'
 
 export const metadata = {
   title: 'Denied Claims Recovery for Medical Practices',
@@ -73,27 +72,6 @@ const FAQS = [
     a: 'The engine flags timely filing denials (CO-29) and, where possible, notes whether the filing window is still open based on the date information in the ERA. If the deadline has passed, the finding is included but marked for manual review rather than auto-generated as appeal-ready.',
   },
 ]
-
-// ─── FAQ item ─────────────────────────────────────────────────────────────────
-
-function FaqItem({ q, a }: { q: string; a: string }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div className="border-b border-zinc-200 last:border-0">
-      <button
-        className="flex w-full items-start justify-between gap-4 py-5 text-left"
-        onClick={() => setOpen(!open)}
-        aria-expanded={open}
-      >
-        <span className="text-base font-medium text-zinc-900">{q}</span>
-        {open
-          ? <ChevronUp className="mt-0.5 h-5 w-5 shrink-0 text-zinc-400" />
-          : <ChevronDown className="mt-0.5 h-5 w-5 shrink-0 text-zinc-400" />}
-      </button>
-      {open && <p className="pb-5 text-sm leading-relaxed text-zinc-600">{a}</p>}
-    </div>
-  )
-}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
