@@ -13,25 +13,27 @@ const geistMono = Geist_Mono({
 })
 
 const SITE_URL = 'https://medicalrouter.com'
-const OG_IMAGE = `${SITE_URL}/og-image.png`
+// NOTE: /og-image-icon.png is a temporary OG image (square).
+// Replace with a 1200×630 PNG at /public/og-image.png for proper social previews.
+const OG_IMAGE = `${SITE_URL}/og-image-icon.png`
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'MedicalRouter — Underpaid & Denied Claims Recovery for Medical Practices',
+    default: 'MedicalRouter — Denied & Underpaid Claims Recovery from ERA and EOB Files',
     template: '%s | MedicalRouter',
   },
   description:
-    'MedicalRouter finds underpaid and denied claims in your 835 ERA and EOB files, calculates the net recoverable per claim, and generates ready-to-send appeal packets. $500 pilot. 25% success fee on recovered dollars only.',
+    'Find denied claims, underpayments, and billing errors in your ERA and EOB files. MedicalRouter surfaces recoverable dollars claim by claim and generates appeal-ready findings for your billing team.',
   keywords: [
-    'underpaid insurance claims',
     'denied claims recovery',
+    'underpaid claims recovery',
+    'ERA analysis',
+    'EOB analysis',
+    'claims revenue recovery',
+    'appeal-ready claim findings',
     'medical billing audit',
-    'insurance claim appeal',
     'ERA 835 analysis',
-    'EOB review',
-    'revenue cycle management',
-    'medical billing recovery',
     'claim denial management',
     'healthcare revenue recovery',
   ],
@@ -54,23 +56,23 @@ export const metadata: Metadata = {
     locale: 'en_US',
     url: SITE_URL,
     siteName: 'MedicalRouter',
-    title: 'MedicalRouter — Underpaid & Denied Claims Recovery for Medical Practices',
+    title: 'MedicalRouter — Denied & Underpaid Claims Recovery from ERA and EOB Files',
     description:
-      'Find underpaid and denied claims in your 835 ERA and EOB files. Net recoverable calculated per claim. Ready-to-send appeal packets. $500 pilot, 25% success fee on recovered dollars only.',
+      'Find denied claims, underpayments, and billing errors in your ERA and EOB files. MedicalRouter surfaces recoverable dollars claim by claim and generates appeal-ready findings.',
     images: [
       {
         url: OG_IMAGE,
-        width: 1200,
-        height: 630,
-        alt: 'MedicalRouter — Denied and Underpaid Claims Recovery',
+        width: 512,
+        height: 512,
+        alt: 'MedicalRouter — Denied and Underpaid Claims Recovery from ERA and EOB Files',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'MedicalRouter — Underpaid & Denied Claims Recovery for Medical Practices',
+    title: 'MedicalRouter — Denied & Underpaid Claims Recovery from ERA and EOB Files',
     description:
-      'Find underpaid and denied claims in your 835 ERA and EOB files. Net recoverable per claim. Ready-to-send appeal packets. $500 pilot.',
+      'Upload ERA or EOB files. Get a ranked list of underpayments and denied claims with appeal-ready findings. $500 pilot.',
     images: [OG_IMAGE],
     creator: '@medicalrouter',
   },
@@ -78,32 +80,34 @@ export const metadata: Metadata = {
     canonical: SITE_URL,
   },
   // Icons are served via Next.js App Router special files:
-  //   app/favicon.ico  → browser tab favicon (16/32/48px multi-size ICO)
+  //   app/favicon.ico  → browser tab favicon
   //   app/icon.png     → 512x512 PNG icon
   //   app/apple-icon.png → 180x180 Apple touch icon
-  // These files auto-generate the correct <link> tags — no manual icons config needed.
   manifest: '/manifest.json',
 }
 
+// Structured data: WebApplication + Organization
+// Only truthful, verifiable information. No fake reviews, ratings, or medical claims.
 const jsonLd = {
   '@context': 'https://schema.org',
-  '@type': 'SoftwareApplication',
+  '@type': 'WebApplication',
   name: 'MedicalRouter',
   url: SITE_URL,
   description:
-    'AI-powered medical billing audit tool that identifies underpaid and denied insurance claims from 835 ERA and EOB documents. No upfront cost — you only pay when money is recovered.',
+    'Claims revenue recovery tool for independent medical practices. Parses 835 ERA and EOB files to identify denied and underpaid claims, calculates net recoverable per claim, and generates ready-to-send appeal packets.',
   applicationCategory: 'BusinessApplication',
   operatingSystem: 'Web',
   offers: {
     '@type': 'Offer',
-    price: '0',
+    price: '500',
     priceCurrency: 'USD',
-    description: 'Free audit — 25% success fee on recovered amounts only',
+    description: '$500 flat onboarding fee for a 30-day pilot. 25% success fee on recovered payer dollars only. No long-term contract.',
   },
   provider: {
     '@type': 'Organization',
     name: 'MedicalRouter',
     url: SITE_URL,
+    email: 'chris@medicalrouter.com',
   },
 }
 
@@ -119,8 +123,6 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        {/* Favicon: served via app/favicon.ico, app/icon.png, app/apple-icon.png (Next.js App Router special files) */}
-        {/* Explicit fallback links for maximum browser compatibility */}
         <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" type="image/x-icon" />
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
         <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />

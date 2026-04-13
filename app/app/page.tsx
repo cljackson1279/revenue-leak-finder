@@ -29,7 +29,7 @@ const FAQS = [
     a: 'Only when a payer issues a corrected payment or upholds an appeal as a direct result of an opportunity found through this pilot. Not on the $500 fee, not on patient responsibility amounts. The fee is invoiced manually after recovery is confirmed.',
   },
   {
-    q: 'Do you handle denials as well as underpayments?',
+    q: 'Do you handle denied claims as well as underpayments?',
     a: 'Yes. The engine identifies underpayments (payer paid less than the contracted allowed amount) and appealable denials (reason codes that are typically reversible — CO-50, CO-29, CO-97, timely filing, bundling errors, and others). Each finding includes the CARC/RARC codes and a draft appeal letter.',
   },
   {
@@ -112,12 +112,32 @@ export default function Home() {
             Find what your payers underpaid.<br className="hidden sm:block" /> File the appeals.
           </h1>
           <p className="mb-5 max-w-2xl text-lg leading-relaxed text-zinc-600">
-            Upload 835 ERA or EOB files. MedicalRouter finds underpayments and denied claims,
-            ranks them by dollar amount, and generates ready-to-send appeal packets.
+            Upload 835 ERA or EOB files. MedicalRouter finds denied claims and underpayments,
+            ranks them by recoverable dollar amount, and generates appeal-ready findings for your billing team.
           </p>
-          <p className="mb-8 inline-block rounded-md bg-zinc-100 px-3 py-1.5 font-mono text-sm text-zinc-600">
+          <p className="mb-6 inline-block rounded-md bg-zinc-100 px-3 py-1.5 font-mono text-sm text-zinc-600">
             Allowed − Paid − Patient Responsibility = Net Recoverable
           </p>
+
+          {/* Above-fold proof: single example finding */}
+          <div className="mb-8 flex items-center gap-3 rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm shadow-sm">
+            <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+              <span className="font-medium text-zinc-800">Cigna</span>
+              <span className="text-zinc-300">·</span>
+              <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">Denial</span>
+              <span className="text-zinc-300">·</span>
+              <span className="font-mono text-xs text-zinc-400">CO-50</span>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-lg font-bold text-zinc-900">$2,100</p>
+              <p className="text-xs text-zinc-400">recoverable</p>
+            </div>
+            <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+              Appeal ready
+            </span>
+          </div>
+          <p className="mb-8 text-xs text-zinc-400">↑ Example finding. See full sample output below.</p>
+
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link href="/pilot">
               <Button size="lg" className="w-full bg-blue-700 px-8 text-white hover:bg-blue-800 sm:w-auto">
@@ -137,12 +157,16 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── Sample findings ── */}
+      {/* ── Sample findings from an ERA / EOB analysis ── */}
       <section className="border-b px-4 py-14 sm:px-6 sm:py-16">
         <div className="mx-auto max-w-5xl">
           <div className="mb-6">
-            <h2 className="mb-1 text-2xl font-semibold tracking-tight text-zinc-900">Sample findings</h2>
-            <p className="text-sm text-zinc-500">Illustrative output. Structure and logic match what the engine produces.</p>
+            <h2 className="mb-1 text-2xl font-semibold tracking-tight text-zinc-900">
+              Sample findings from an ERA and EOB analysis
+            </h2>
+            <p className="text-sm text-zinc-500">
+              Illustrative output. Structure and logic match what the engine produces from real files.
+            </p>
           </div>
 
           {/* Table — desktop */}
@@ -222,34 +246,36 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── How it works ── */}
+      {/* ── How ERA and EOB analysis works ── */}
       <section id="how-it-works" className="border-b bg-zinc-50 px-4 py-14 sm:px-6 sm:py-16">
         <div className="mx-auto max-w-5xl">
-          <h2 className="mb-8 text-2xl font-semibold tracking-tight text-zinc-900">How it works</h2>
+          <h2 className="mb-8 text-2xl font-semibold tracking-tight text-zinc-900">
+            How ERA and EOB analysis works
+          </h2>
           <div className="grid gap-6 sm:grid-cols-4">
             {[
               {
                 icon: <FileText className="h-5 w-5 text-blue-600" />,
                 step: '1',
-                title: 'Upload',
+                title: 'Upload your files',
                 body: '835 EDI files or EOB PDFs from UHC, Cigna, Aetna, BCBS, Medicare, or any major payer.',
               },
               {
                 icon: <BarChart2 className="h-5 w-5 text-blue-600" />,
                 step: '2',
-                title: 'Analyze',
-                body: 'The engine parses each transaction and flags shortfalls and appealable denials by CARC/RARC code.',
+                title: 'Claims are analyzed',
+                body: 'The engine parses each transaction and flags underpayments and appealable denied claims by CARC/RARC code.',
               },
               {
                 icon: <CheckCircle className="h-5 w-5 text-blue-600" />,
                 step: '3',
-                title: 'Review',
+                title: 'Review ranked findings',
                 body: 'Each finding shows: Allowed − Paid − Patient Responsibility = Net Recoverable, with the full claim detail.',
               },
               {
                 icon: <Lock className="h-5 w-5 text-blue-600" />,
                 step: '4',
-                title: 'Recover',
+                title: 'File appeals and track recovery',
                 body: 'Download the appeal packet. File with the payer. Track each appeal from submitted through to resolved.',
               },
             ].map(({ icon, step, title, body }) => (
@@ -268,19 +294,21 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── Who it's for / Data ── */}
+      {/* ── Who this is for / Data handling ── */}
       <section className="border-b px-4 py-14 sm:px-6 sm:py-16">
         <div className="mx-auto max-w-5xl">
           <div className="grid gap-10 sm:grid-cols-2">
 
             <div>
-              <h2 className="mb-5 text-2xl font-semibold tracking-tight text-zinc-900">Who this is for</h2>
+              <h2 className="mb-5 text-2xl font-semibold tracking-tight text-zinc-900">
+                Who this is for
+              </h2>
               <ul className="mb-5 space-y-3">
                 {[
                   'Independent specialty practices — cardiology, orthopedics, oncology, multi-specialty groups',
                   '1–10 providers billing commercial payers and Medicare',
                   '50+ claims per month',
-                  'Teams leaving denial appeals on the table',
+                  'Teams leaving denied claim appeals on the table',
                   'Practices that suspect short-pays but cannot identify them claim by claim',
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-3 text-sm text-zinc-700">
@@ -290,12 +318,15 @@ export default function Home() {
                 ))}
               </ul>
               <div className="rounded-md border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-500">
-                <span className="font-medium text-zinc-700">Not a fit:</span> large hospital systems, RCM vendors reselling to patients, or practices with fewer than 50 claims per month.
+                <span className="font-medium text-zinc-700">Not a fit:</span>{' '}
+                large hospital systems, RCM vendors reselling to patients, or practices processing fewer than 50 claims per month.
               </div>
             </div>
 
             <div>
-              <h2 className="mb-5 text-2xl font-semibold tracking-tight text-zinc-900">How your data is handled</h2>
+              <h2 className="mb-5 text-2xl font-semibold tracking-tight text-zinc-900">
+                How your data is handled
+              </h2>
               <ul className="space-y-3">
                 {[
                   'Files stored in private per-account storage — not shared across accounts',
@@ -315,10 +346,12 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── Pricing ── */}
+      {/* ── 30-day pilot pricing ── */}
       <section className="border-b bg-zinc-50 px-4 py-14 sm:px-6 sm:py-16">
         <div className="mx-auto max-w-3xl">
-          <h2 className="mb-6 text-2xl font-semibold tracking-tight text-zinc-900">Pricing</h2>
+          <h2 className="mb-6 text-2xl font-semibold tracking-tight text-zinc-900">
+            30-day pilot pricing
+          </h2>
 
           <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm sm:p-8">
             <div className="mb-6 flex flex-col gap-1 border-b border-zinc-100 pb-6 sm:flex-row sm:items-end sm:gap-8">
@@ -334,7 +367,7 @@ export default function Home() {
 
             <ul className="mb-6 space-y-3">
               {[
-                'Full analysis of 835 ERA and EOB files for underpayments and appealable denials',
+                'Full analysis of 835 ERA and EOB files for underpayments and appealable denied claims',
                 'Net recoverable calculated per claim: Allowed − Paid − Patient Responsibility',
                 'Appeal packets with denial-specific letter templates, classified by CARC/RARC code',
                 'No per-claim fees. No per-payer fees. No long-term contract.',
@@ -370,7 +403,9 @@ export default function Home() {
       {/* ── FAQ ── */}
       <section className="border-b px-4 py-14 sm:px-6 sm:py-16">
         <div className="mx-auto max-w-3xl">
-          <h2 className="mb-8 text-2xl font-semibold tracking-tight text-zinc-900">Frequently asked questions</h2>
+          <h2 className="mb-8 text-2xl font-semibold tracking-tight text-zinc-900">
+            Frequently asked questions
+          </h2>
           <div className="rounded-xl border border-zinc-200 bg-white px-6 sm:px-8">
             {FAQS.map((faq) => (
               <FaqItem key={faq.q} q={faq.q} a={faq.a} />
@@ -388,7 +423,9 @@ export default function Home() {
       {/* ── Bottom CTA ── */}
       <section className="bg-blue-700 px-4 py-14 sm:px-6 sm:py-20">
         <div className="mx-auto max-w-3xl text-center">
-          <h2 className="mb-3 text-3xl font-semibold text-white">Ready to see what you are owed?</h2>
+          <h2 className="mb-3 text-3xl font-semibold text-white">
+            Ready to see what you are owed?
+          </h2>
           <p className="mb-8 text-blue-200">
             Upload your ERA or EOB files. You keep all findings — and pay 25% only on what is actually recovered.
           </p>
@@ -411,16 +448,20 @@ export default function Home() {
       <footer className="border-t bg-white py-8">
         <div className="mx-auto max-w-5xl px-4 sm:px-6">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-            <p className="text-xs text-zinc-400">© {new Date().getFullYear()} MedicalRouter. All rights reserved.</p>
-            <div className="flex flex-wrap items-center justify-center gap-5 text-xs text-zinc-400">
-              <Link href="/pilot" className="font-medium text-blue-700 underline hover:text-blue-900">30-Day Pilot — $500</Link>
-              <Link href="/faq" className="hover:text-zinc-600">FAQ</Link>
-              <Link href="/terms" className="hover:text-zinc-600">Terms of Use</Link>
-              <Link href="/privacy" className="hover:text-zinc-600">Privacy Policy</Link>
-              <Link href="/service-agreement" className="hover:text-zinc-600">Service Agreement</Link>
-              <Link href="/login" className="hover:text-zinc-600">Sign in</Link>
-              <a href="mailto:chris@medicalrouter.com" className="hover:text-zinc-600">Contact</a>
-            </div>
+            <address className="not-italic text-xs text-zinc-400">
+              © {new Date().getFullYear()} MedicalRouter ·{' '}
+              <a href="mailto:chris@medicalrouter.com" className="hover:text-zinc-600">chris@medicalrouter.com</a>
+            </address>
+            <nav aria-label="Footer navigation">
+              <div className="flex flex-wrap items-center justify-center gap-5 text-xs text-zinc-400">
+                <Link href="/pilot" className="font-medium text-blue-700 underline hover:text-blue-900">30-Day Pilot — $500</Link>
+                <Link href="/faq" className="hover:text-zinc-600">FAQ</Link>
+                <Link href="/terms" className="hover:text-zinc-600">Terms of Use</Link>
+                <Link href="/privacy" className="hover:text-zinc-600">Privacy Policy</Link>
+                <Link href="/service-agreement" className="hover:text-zinc-600">Service Agreement</Link>
+                <Link href="/login" className="hover:text-zinc-600">Sign in</Link>
+              </div>
+            </nav>
           </div>
         </div>
       </footer>
