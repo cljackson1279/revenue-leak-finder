@@ -106,14 +106,15 @@ export default function Home() {
       <section className="border-b bg-zinc-50 px-4 py-16 sm:px-6 sm:py-24">
         <div className="mx-auto max-w-3xl">
           <p className="mb-4 text-sm font-semibold uppercase tracking-widest text-blue-700">
-            For independent specialty practices
+            Denied and underpaid claims recovery
           </p>
           <h1 className="mb-5 text-4xl font-semibold leading-tight tracking-tight text-zinc-900 sm:text-5xl">
-            Find what your payers underpaid.<br className="hidden sm:block" /> File the appeals.
+            Find denied and underpaid claims<br className="hidden sm:block" /> in your ERA and EOB files.
           </h1>
           <p className="mb-5 max-w-2xl text-lg leading-relaxed text-zinc-600">
-            Upload 835 ERA or EOB files. MedicalRouter finds denied claims and underpayments,
-            ranks them by recoverable dollar amount, and generates appeal-ready findings for your billing team.
+            For practice administrators and billing teams at independent specialty practices.
+            MedicalRouter analyzes 835 ERAs and EOB PDFs to surface underpayments, denied claims,
+            and billing errors — with appeal-ready findings for each one.
           </p>
           <p className="mb-6 inline-block rounded-md bg-zinc-100 px-3 py-1.5 font-mono text-sm text-zinc-600">
             Allowed − Paid − Patient Responsibility = Net Recoverable
@@ -324,6 +325,11 @@ export default function Home() {
                 <span className="font-medium text-zinc-700">Not a fit:</span>{' '}
                 large hospital systems, RCM vendors reselling to patients, or practices processing fewer than 50 claims per month.
               </div>
+              <p className="mt-4 text-sm">
+                <Link href="/denied-claims-recovery" className="font-medium text-blue-700 underline hover:text-blue-900">
+                  Learn how we handle denied claims recovery →
+                </Link>
+              </p>
             </div>
 
             <div>
@@ -390,7 +396,7 @@ export default function Home() {
 
             <Link href="/pilot">
               <Button size="lg" className="w-full bg-blue-700 text-white hover:bg-blue-800 sm:w-auto">
-                Start the 30-Day Pilot →
+                Start 30-Day Pilot →
               </Button>
             </Link>
           </div>
